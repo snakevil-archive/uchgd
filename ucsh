@@ -1,0 +1,112 @@
+#!/bin/sh
+#
+# hg 帐号所使用的 shell 脚本。
+#
+# 以配合 ~/.ssh/authorized_keys 处理基本的身份验证工作。
+#
+# AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
+# COPYRIGHT © 2011 uc.cn.
+
+export PATH="/usr/local/bin:/usr/bin:/bin"
+
+# {{{ 规约错误描述
+
+# 1
+readonly E_INVALID_INSTALLATION='中断！错误的安装版本。'
+# 2
+readonly E_ILLEGAL_CMD_OPT='中断！配置中使用了不允许的`command'"'"'选项。'
+# 3
+readonly E_ILLEGAL_ENV_OPT='中断！配置中缺少必须的`environment'"'"'选项。'
+# 4
+readonly E_UNKNOWN_OPERATION='中断！不可识别的操作指令"%s"。'
+# 5
+readonly E_NONEXIST_REPO='中断！不存在的版本库"%s"。'
+# 6
+readonly E_ACCESS_DENIED='中断！用户"%s"无权访问版本库"%s"。'
+
+# }}}
+
+# {{{ 基础函数定义 - _halt()
+
+_halt() {
+  [ 0 -eq $# ] && exit 0
+
+  local code=$1
+  shift
+
+  [ 0 -lt $# ] && {
+    local mesg="UCHGd: $1"
+    shift
+
+    'printf' "${mesg}" "$@"
+    echo ''
+  }
+
+  exit $code
+}
+
+# }}}
+
+# {{{ 检查 UCHGd 的安装
+
+[ '/home/hg/ucsh' = "${SHELL}" ] || _halt 1 "${E_INVALID_INSTALLATION}"
+
+# }}}
+
+# {{{ 检查 authorized_keys 配置的 command 项
+
+[ -z "${SSH_ORIGINAL_COMMAND}" ] || _halt 2 "${E_ILLEGAL_CMD_OPT}"
+
+# }}}
+
+# {{{ 检查 authorized_keys 配置的 environment 项
+
+[ -n "${USER}" -a 'hg' != "${USER}" ] || _halt 3 "${E_ILLEGAL_ENV_OPT}"
+
+# }}}
+
+# {{{ 检查操作指令
+
+shift
+
+syntax=`echo "$1" | 'awk' '{print $1, $2, $4, $5}'`
+[ 'hg -R serve --stdio' = "${syntax}" ] \
+  || _halt 4 "${E_UNKNOWN_OPERATION}" "$1"
+unset syntax
+
+# }}}
+
+# {{{ 检查版本库
+
+readonly REPO_NAME=`echo "$1" | 'awk' '{print $3}'`
+readonly REPO_SRC="${HOME}/${REPO_NAME}"
+readonly REPO_HG="${REPO_SRC}/.hg"
+readonly REPO_AUTH="${REPO_SRC}.auth"
+
+[ -d "${REPO_SRC}" ] \
+  && [ -r "${REPO_SRC}" -a -w "${REPO_SRC}" -a -x "${REPO_SRC}" ] \
+  && [ -d "${REPO_HG}" ] \
+  && [ -r "${REPO_HG}" -a -w "${REPO_HG}" -a -x "${REPO_HG}" ] \
+  && [ -f "${REPO_AUTH}" ] \
+  && [ -r "${REPO_AUTH}" ] \
+  || _halt 5 "${E_NONEXIST_REPO}" "${REPO_AUTH}"
+
+# }}}
+
+# {{{ 检查用户访问授权
+
+authuser=`'awk' '"'"${USER}"'"==$1{print $1}' "${REPO_AUTH}"`
+
+[ -n "${authuser}" ] \
+  || _halt 6 "${E_ACCESS_DENIED}" "${USER}" "${REPO_NAME}"
+
+# }}}
+
+# {{{ 访问版本库
+
+$1
+
+# }}}
+
+# vim:ft=sh:fenc=utf-8:ff=unix:tw=75:ts=2:sts=2:et:ai:si
+# vim:nowrap:sw=2:nu:nuw=4:so=5:fen:fdm=marker
