@@ -8,6 +8,7 @@
 # COPYRIGHT © 2011 uc.cn.
 
 export PATH="/usr/local/bin:/usr/bin:/bin"
+UCSH=`'basename' "$0"`
 
 # {{{ 规约错误描述
 
@@ -49,7 +50,7 @@ _halt() {
 
 # {{{ 检查 UCHGd 的安装
 
-[ '/home/hg/ucsh' = "${SHELL}" ] || _halt 1 "${E_INVALID_INSTALLATION}"
+[ "${HOME}/${UCSH}" = "${SHELL}" ] || _halt 1 "${E_INVALID_INSTALLATION}"
 
 # }}}
 
@@ -89,7 +90,7 @@ readonly REPO_AUTH="${REPO_SRC}.auth"
   && [ -r "${REPO_HG}" -a -w "${REPO_HG}" -a -x "${REPO_HG}" ] \
   && [ -f "${REPO_AUTH}" ] \
   && [ -r "${REPO_AUTH}" ] \
-  || _halt 5 "${E_NONEXIST_REPO}" "${REPO_AUTH}"
+  || _halt 5 "${E_NONEXIST_REPO}" "${REPO_NAME}"
 
 # }}}
 
