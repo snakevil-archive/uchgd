@@ -1,0 +1,75 @@
+#!/bin/sh
+#
+# hooks/pretxnchangegroup.checkpushbranch: 在 push 时检查对分支的写入权限。
+#
+# AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
+# COPYRIGHT © 2011 uc.cn.
+
+export PATH="/usr/local/bin:/usr/bin:/bin"
+readonly HG
+readonly HG_NODE
+readonly HG_PENDING
+readonly HG_URL
+
+# {{{ 规约错误描述
+
+# 1
+readonly E_AUTH_ACCESS_DENIED='错误！授权信息丢失。'
+# 2
+readonly E_ACCESS_DENIED='错误！帐号"%s"无权向"default"分支提交。'
+
+# }}}
+
+# {{{ 基础函数定义 - _halt()
+
+_halt() {
+  [ 0 -eq $# ] && exit 0
+
+  local code=$1
+  shift
+
+  [ 0 -lt $# ] && {
+    local mesg="UCHGd: $1"
+    shift
+
+    'printf' "${mesg}" "$@"
+    echo ''
+  }
+
+  exit $code
+}
+
+# }}}
+
+# {{{ 读取用户的访问授权
+
+readonly REPO_NAME=`'basename' "${HG_PENDING}"`
+readonly REPO_SRC="${HG_PENDING}"
+readonly REPO_AUTH="${REPO_SRC}.auth"
+
+[ -f "${REPO_AUTH}" -a -r "${REPO_AUTH}" ] \
+  || _halt 1 "${E_AUTH_ACCESS_DENIED}"
+
+perm=`'awk' '"'"${USER}"'"==$1{print $2}' "${REPO_AUTH}"`
+[ -n "${perm}" ] || perm='rw'
+
+# }}}
+
+# {{{ 读取变更集涉及的分支名称（存在 default 时结果总是为 default）
+
+for chgset in `"${HG}" log -r "${HG_NODE}:tip" --template '{node} '`
+do
+  [ 'xdefault' = "x${branch}" ] || branch=`"${HG}" id -b -r "${chgset}"`
+done
+
+# }}}
+
+# {{{ 检查权限与分支是否匹配
+
+[ 'default' = "${branch}" -a 0 -lt `expr index "${perm}" 'W'` ] \
+  || _halt 2 "${E_ACCESS_DENIED}" "${USER}"
+
+# }}}
+
+# vim:ft=sh:fenc=utf-8:ff=unix:tw=75:ts=2:sts=2:et:ai:si
+# vim:nowrap:sw=2:nu:nuw=4:so=5:fen:fdm=marker
