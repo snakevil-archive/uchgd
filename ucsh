@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# hg 帐号所使用的 shell 脚本。
+# ucsh: hg 帐号所使用的 shell 脚本。
 #
 # 以配合 ~/.ssh/authorized_keys 处理基本的身份验证工作。
 #
