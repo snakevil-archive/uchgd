@@ -66,7 +66,7 @@ done
 
 # {{{ 检查权限与分支是否匹配
 
-[ 'default' = "${branch}" -a 0 -lt `expr index "${perm}" 'W'` ] \
+[ 'default' = "${branch}" -a 0 -lt `'expr' index "${perm}" 'W'` ] \
   || _halt 2 "${E_ACCESS_DENIED}" "${USER}"
 
 # }}}
