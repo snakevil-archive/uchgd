@@ -62,7 +62,7 @@ hgrc: $(wildcard hooks/*)
 			for file in "$${found}"; do \
 				name=`'basename' "$${file}"`; \
 				_item_echo ' +' '`'"$${name}' "; \
-				echo "$${name} = $${PWD}$${file}" >> hgrc; \
+				echo "$${name} = hooks/$${name}" >> hgrc; \
 			done; \
 		}; \
 		found=; \
