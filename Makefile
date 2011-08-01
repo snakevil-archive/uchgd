@@ -9,7 +9,7 @@ HOOK_TYPES = changegroup commit incoming outgoing prechangegroup precommit \
 
 USED_CMDS = awk basename expr hg id sudo useradd usermod wc stat mv
 
-UCHGd: check authorized_keys hgrc user.hg
+UCHGd: check user.hg authorized_keys hgrc
 
 authorized_keys: $(sort $(wildcard pubkeys/*.pub))
 	$(info GATHERING PUBKEYS)
@@ -82,6 +82,7 @@ hgrc: $(sort $(wildcard hooks/*))
 		[ -n "$${result}" ] && 'printf' "%$${len}s" "$${result}"; \
 		echo ''; \
 	}; \
+	HOME=`'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd`; \
 	[ '/' = "$(PWD)" ] || PWD="$(PWD)/"; \
 	for type in $(HOOK_TYPES); do \
 		hint='seeks `'"$${type}'"' hooks...'; \
