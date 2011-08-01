@@ -1,4 +1,4 @@
 syntax: glob
 .*
-check.report
+authorized_keys
 hgrc
