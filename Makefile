@@ -93,7 +93,7 @@ hgrc: $(sort $(wildcard hooks/*))
 			for file in "$${found}"; do \
 				name=`'basename' "$${file}"`; \
 				_item_echo ' +' '`'"$${name}' "; \
-				echo "$${name} = hooks/$${name}" >> hgrc; \
+				echo "$${name} = $${HOME}/hooks/$${name}" >> hgrc; \
 			done; \
 		}; \
 		found=; \
