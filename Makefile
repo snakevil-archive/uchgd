@@ -9,7 +9,38 @@ HOOK_TYPES = changegroup commit incoming outgoing prechangegroup precommit \
 
 USED_CMDS = awk basename expr hg id sudo useradd usermod wc stat mv
 
-UCHGd: check hgrc user.hg
+UCHGd: check authorized_keys hgrc user.hg
+
+authorized_keys: $(sort $(wildcard pubkeys/*.pub))
+	$(info GATHERING PUBKEYS)
+	@$(RM) authorized_keys; \
+	'touch' authorized_keys; \
+	_item_echo() { \
+		local hint=" $$1"; \
+		local result="$$2"; \
+		local len=`echo -n "$${hint}" | 'wc' -c`; \
+		len=`'expr' 65 - "$${len}"`; \
+		'printf' '%s' "$${hint}"; \
+		[ -n "$${result}" ] && 'printf' "%$${len}s" "$${result}"; \
+		echo ''; \
+	}; \
+	hint='seeks pubkeys...'; \
+	[ 0 -eq $(words $^) ] && { \
+		_item_echo "$${hint}" 'none'; \
+		echo 'ABORTED!'; \
+		exit 1; \
+	} || { \
+		_item_echo "$${hint}" '$(words $^) found'; \
+		for file in $^; do \
+			name=`'basename' "$${file}" '.pub'`; \
+			clob=`'cat' "$${file}"`; \
+			clob="environment=\"USER=$${name}\" $${clob}"; \
+			clob="no-pty,no-port-forwarding,no-X11-forwarding,no-agent-forwarding,$${clob}"; \
+			echo "$${clob}" >> authorized_keys; \
+			_item_echo ' +' "$${name} "; \
+		done; \
+	}; \
+	echo '';
 
 check:
 	$(if $(shell 'which' which 2> /dev/null), , \
@@ -36,10 +67,10 @@ check:
 	echo '';
 
 clean:
-	$(RM) hgrc
+	$(RM) authorized_keys hgrc
 	@echo ''
 
-hgrc: $(wildcard hooks/*)
+hgrc: $(sort $(wildcard hooks/*))
 	$(info GATHERING HOOKS)
 	@echo '[hooks]' > hgrc; \
 	_item_echo() { \
@@ -58,7 +89,7 @@ hgrc: $(wildcard hooks/*)
 		files=`'ls' "hooks/$${type}."* 2> /dev/null`; \
 		[ -n "$${files}" ] && found="$${found}$${files}"; \
 		[ -z "$${found}" ] && _item_echo "$${hint}" 'none' || { \
-			_item_echo "$${hint}" `echo "$${found}" | 'wc' -l`; \
+			_item_echo "$${hint}" `echo "$${found}" | 'wc' -l`' found'; \
 			for file in "$${found}"; do \
 				name=`'basename' "$${file}"`; \
 				_item_echo ' +' '`'"$${name}' "; \
@@ -69,8 +100,8 @@ hgrc: $(wildcard hooks/*)
 	done; \
 	echo '';
 
-install:
-	$(if $(and $(wildcard hgrc), $(shell id hg 2> /dev/null)), , \
+install: check
+	$(if $(and $(wildcard authorized_keys), $(wildcard hgrc), $(shell id hg 2> /dev/null)), , \
 		$(error Run 'make' first) \
 	)
 	$(info INSTALLING)
@@ -89,9 +120,10 @@ install:
 	hint='copy scripts...'; \
 	reason=`'sudo' 'cp' -af hgrc "$${HOME}/.hgrc" 2>&1 \
 		&& 'sudo' 'cp' -af -t "$${HOME}" hooks ucsh 2>&1 \
+		&& 'sudo' 'mkdir' -p "$${HOME}/.ssh" 2>&1 \
+		&& 'sudo' 'cp' -af authorized_keys "$${HOME}/.ssh/" 2>&1 \
 		&& cd "$${HOME}" \
 		&& 'sudo' 'mkdir' -p repos 2>&1 \
-		&& 'sudo' 'mkdir' -p .ssh 2>&1 \
 		&& 'sudo' 'chown' -R hg:hg .hgrc ucsh hooks repos .ssh 2>&1 \
 		&& 'sudo' 'chmod' 700 .ssh 2>&1 \
 	`; \
@@ -103,7 +135,7 @@ install:
 	echo 'DONE.';
 
 user.hg:
-	$(info CREATING USER 'hg')
+	$(info VALIDATING USER 'hg')
 	@_item_echo() { \
 		local hint=" $$1"; \
 		local result="$$2"; \
