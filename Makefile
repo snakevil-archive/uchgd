@@ -90,7 +90,10 @@ install:
 	reason=`'sudo' 'cp' -af hgrc "$${HOME}/.hgrc" 2>&1 \
 		&& 'sudo' 'cp' -af -t "$${HOME}" hooks ucsh 2>&1 \
 		&& cd "$${HOME}" \
-		&& 'sudo' 'chown' -R hg:hg .hgrc ucsh hooks 2>&1 \
+		&& 'sudo' 'mkdir' -p repos 2>&1 \
+		&& 'sudo' 'mkdir' -p .ssh 2>&1 \
+		&& 'sudo' 'chown' -R hg:hg .hgrc ucsh hooks repos .ssh 2>&1 \
+		&& 'sudo' 'chmod' 700 .ssh 2>&1 \
 	`; \
 	[ 0 -eq $$? ] && _item_echo "$${hint}" 'done' || { \
 		_item_echo "$${hint}" 'halt'; \
