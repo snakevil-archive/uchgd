@@ -5,7 +5,7 @@
 # AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
 # COPYRIGHT © 2011 uc.cn.
 
-export PATH="/usr/local/bin:/usr/bin:/bin"
+export PATH="${HOME}:/usr/local/bin:/usr/bin:/bin"
 readonly HG
 readonly HG_NODE
 readonly HG_PENDING
@@ -16,7 +16,11 @@ readonly HG_URL
 # 1
 readonly E_AUTH_ACCESS_DENIED='错误！授权信息丢失。'
 # 2
-readonly E_ACCESS_DENIED='错误！帐号"%s"无权向"default"分支提交。'
+readonly E_ACCESS_DENIED='错误！帐号"%s"无权提交变更。'
+# 3
+readonly E_BDEF_ACCESS_DENIED='错误！帐号"%s"无权在分支"default"提交变更。'
+
+#
 
 # }}}
 
@@ -50,8 +54,14 @@ readonly REPO_AUTH="${REPO_SRC}.auth"
 [ -f "${REPO_AUTH}" -a -r "${REPO_AUTH}" ] \
   || _halt 1 "${E_AUTH_ACCESS_DENIED}"
 
-perm=`'awk' '"'"${USER}"'"==$1{print $2}' "${REPO_AUTH}"`
-[ -n "${perm}" ] || perm='rw'
+perm=`'permq' "${USER}" "${REPO_AUTH}" | 'awk' '{print $1}'`
+
+# }}}
+
+# {{{ 检查用户是否有权提交变更集
+
+[ 'w' = "${perm}" -o 'W' = "${perm}" ] \
+  || _halt 2 "${E_ACCESS_DENIED}" "${USER}"
 
 # }}}
 
@@ -66,8 +76,8 @@ done
 
 # {{{ 检查权限与分支是否匹配
 
-[ 'default' = "${branch}" -a 0 -lt `'expr' index "${perm}" 'W'` ] \
-  || _halt 2 "${E_ACCESS_DENIED}" "${USER}"
+[ 'default' = "${branch}" -a 'W' = "${perm}" ] \
+  || _halt 2 "${E_BDEF_ACCESS_DENIED}" "${USER}"
 
 # }}}
 
