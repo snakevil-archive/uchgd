@@ -1,0 +1,129 @@
+#!/bin/sh
+#
+# permq: 查询指定用户在指定版本库中的权限信息。
+#
+# AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
+# COPYRIGHT © 2011 uc.cn.
+
+export PATH="/usr/local/bin:/usr/bin:/bin"
+
+# {{{ 参数检查
+
+USER=$1
+
+REPO_NAME=$2
+
+[ 0 -eq $# ] && {
+  'cat' << USAGE
+permq: 查询指定用户在指定版本库中的权限信息。
+
+USAGE: permq <USER> <REPOSITORY>
+USAGE
+  exit 0
+}
+
+[ -n "${USER}" -a -n "${REPO_NAME}" ] || exit 1
+
+REPO_SRC=`'awk' -F':' '"hg"==$1{print $6}' /etc/passwd`
+
+[ -n "${REPO_SRC}" ] && REPO_SRC="${REPO_SRC}/repos" || exit 2
+
+# }}}
+
+# {{{ 版本库检查
+
+REPO_AUTH="${REPO_SRC}/${REPO_NAME}.auth"
+
+[ -f "${REPO_AUTH}" -a -r "${REPO_AUTH}" ] || exit 3
+
+# }}}
+
+# {{{ 查询权限
+
+'sed' -e 's/^\s+//' -e 's/\s+$//' -e 's/\s*=\s*/=/' "${REPO_AUTH}" \
+  | 'awk' -F'=' ' \
+      function ct(p) { \
+        if (1 < length(p)) \
+          p = substr(p, 1, 1); \
+        if ("W" == p) \
+          return 3; \
+        else if ("w" == p) \
+          return 2; \
+        else if ("r" == p) \
+          return 1; \
+        else \
+          return 0; \
+      } \
+      function cv2t(v) { \
+        if (3 == v) \
+          return "W"; \
+        else if (2 == v) \
+          return "w"; \
+        else if (1 == v) \
+          return "r"; \
+        else \
+          return ""; \
+      } \
+      function cv2v(v) { \
+        if (3 == v) \
+          return "rW-"; \
+        else if (2 == v) \
+          return "rw-"; \
+        else if (1 == v) \
+          return "r--"; \
+        else \
+          return "---"; \
+      } \
+      BEGIN { \
+        user = "'"${USER}"'"; \
+        pm["u"] = pm["g"] = pm["o"] = 0; \
+      } \
+      "@" == substr($1, 1, 1) { \
+        n = substr($1, 2, length($1) - 1); \
+        if (index(" "$2" ", " "user" ")) \
+          gn[n] = n; \
+      } \
+      "%" == substr($1, 1, 1) { \
+        n= substr($1, 2, length($1) - 1); \
+        gp[n] = ct($2); \
+      } \
+      "*" == $1 { \
+        pm["o"] = ct($2); \
+      } \
+      user == $1 { \
+        pm["u"] = ct($2); \
+      } \
+      END { \
+        for (n in gn) \
+          if (pm["g"] < gp[n]) { \
+            g = n; \
+            pm["g"] = gp[n]; \
+          } \
+        pv = "-"; \
+        if (pm["u"]) { \
+          c = "u"; \
+          p = pm["u"]; \
+          pv = pv""cv2v(pm["u"]); \
+        } \
+        if (pm["g"]) { \
+          if (pm["g"] > p) {\
+            c = "g"; \
+            p = pm["g"]; \
+          } \
+          pv = pv""cv2v(pm["g"]); \
+        } \
+        if (pm["o"]) { \
+          if (pm["o"] > p) {\
+            c = "o"; \
+            p = pm["o"]; \
+          } \
+          pv = pv""cv2v(pm["o"]); \
+        } \
+        print cv2t(p), pv, g, c; \
+      } \
+    '
+
+# }}}
+
+# vim:ft=sh:fenc=utf-8:ff=unix:tw=75:ts=2:sts=2:et:ai:si
+# vim:nowrap:sw=2:nu:nuw=4:so=5:fen:fdm=marker
