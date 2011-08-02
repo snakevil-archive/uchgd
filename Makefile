@@ -7,7 +7,7 @@ HOOK_TYPES = changegroup commit incoming outgoing prechangegroup precommit \
     preoutgoing pretag pretxnchangegroup pretxncommit preupdate tag \
     update
 
-USED_CMDS = awk basename expr hg id sudo useradd usermod wc stat mv
+USED_CMDS = awk basename expr hg id sudo useradd usermod wc stat mv grep
 
 UCHGd: check user.hg authorized_keys hgrc
 
@@ -116,6 +116,34 @@ install: check
 		echo ''; \
 	}; \
 	_item_echo ' * `root'"'"' privilleges maybe required by `sudo'"'"' *'; \
+	hint='checks whether `openssh-server'"'"' installed...'; \
+	[ -f /etc/ssh/sshd_config -a -r /etc/ssh/sshd_config ] \
+		&& _item_echo "$${hint}" 'yes' \
+		|| { \
+			_item_echo "$${hint}" 'no'; \
+			echo 'ABORTED!'; \
+			exit 1; \
+		}; \
+	hint='checks whether option `PermitUserEnvironment'"'"' turned on...'; \
+	`'grep' '^PermitUserEnvironment\s*yes$$' /etc/ssh/sshd_config > /dev/null 2>&1` \
+		&& _item_echo "$${hint}" 'yes' \
+		|| { \
+			_item_echo "$${hint}" 'no'; \
+			hint='modifies `sshd_config'"'..."; \
+			reason=`cd /etc/ssh \
+				&& 'sudo' 'cp' -af sshd_config sshd_config~backup-by-uchgd 2>&1 \
+				&& 'sudo' 'chown' "$${USER}" sshd_config 2>&1 \
+				&& echo '' >> sshd_config \
+				&& echo '# Added by UCHGd' >> sshd_config \
+				&& echo 'PermitUserEnvironment yes' >> sshd_config \
+				&& 'sudo' 'chown' root sshd_config 2>&1 \
+			`; \
+			[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
+				_item_echo "$${hint}" 'failed'; \
+				echo "ABORTED! $${reason}"; \
+				exit 1; \
+			}; \
+		}; \
 	HOME=`'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd`; \
 	_item_echo 'reads home folder...' "$${HOME}"; \
 	hint='copies necessary scripts...'; \
