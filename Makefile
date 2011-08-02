@@ -121,10 +121,10 @@ install: check
 	hint='copies necessary scripts...'; \
 	reason=`'sudo' 'cp' -af hgrc "$${HOME}/.hgrc" 2>&1 \
 		&& 'sudo' 'cp' -af -t "$${HOME}" ucsh hooks permq 2>&1 \
+		&& 'sudo' 'cp' -an -t "$${HOME}" repos 2>&1 \
 		&& 'sudo' 'mkdir' -p "$${HOME}/.ssh" 2>&1 \
 		&& 'sudo' 'cp' -af authorized_keys "$${HOME}/.ssh/" 2>&1 \
 		&& cd "$${HOME}" \
-		&& 'sudo' 'mkdir' -p repos 2>&1 \
 		&& 'sudo' 'chown' -R hg:hg .hgrc ucsh hooks permq .ssh repos 2>&1 \
 		&& 'sudo' 'chmod' 700 .ssh 2>&1 \
 	`; \
