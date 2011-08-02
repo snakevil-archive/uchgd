@@ -97,7 +97,7 @@ readonly REPO_AUTH="${REPO_SRC}.auth"
 
 # {{{ 检查用户访问授权
 
-authuser=`'permq' "${USER}" "${REPO_NAME}" | 'awk' '{print $1}'`
+authuser=`'permq' "${USER}" "${REPO_AUTH}" | 'awk' '{print $1}'`
 
 [ -n "${authuser}" -a '-' != "${authuser}" ] \
   || _halt 6 "${E_ACCESS_DENIED}" "${USER}" "${REPO_NAME}"
