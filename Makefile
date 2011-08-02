@@ -118,7 +118,7 @@ install: check
 	_item_echo ' * `root'"'"' privilleges maybe required by `sudo'"'"' *'; \
 	HOME=`'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd`; \
 	_item_echo 'reads home folder...' "$${HOME}"; \
-	hint='copy scripts...'; \
+	hint='copies necessary scripts...'; \
 	reason=`'sudo' 'cp' -af hgrc "$${HOME}/.hgrc" 2>&1 \
 		&& 'sudo' 'cp' -af -t "$${HOME}" ucsh hooks permq 2>&1 \
 		&& 'sudo' 'mkdir' -p "$${HOME}/.ssh" 2>&1 \
@@ -132,6 +132,16 @@ install: check
 		_item_echo "$${hint}" 'halt'; \
 		echo "ABORTED! $${reason}"; \
 		exit 1; \
+	}; \
+	hint='checks `sample'"'"' repository...'; \
+	[ -d "$${HOME}/repos/sample/.hg" ] && _item_echo "$${hint}" 'yes' || { \
+		_item_echo "$${hint}" 'no'; \
+		hint='creates `sample'"'"' repository...'; \
+		reason=`'sudo' -u hg 'hg' init "$${HOME}/repos/sample" 2>&1`; \
+		[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
+			_item_echo "$${hint}" 'failed'; \
+			echo "WARNING! $${reason}"; \
+		}; \
 	}; \
 	echo 'DONE.';
 
