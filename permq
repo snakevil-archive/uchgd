@@ -62,7 +62,7 @@ REPO_AUTH="${REPO_SRC}/${REPO_NAME}.auth"
         else if (1 == v) \
           return "r"; \
         else \
-          return ""; \
+          return "-"; \
       } \
       function cv2v(v) { \
         if (3 == v) \
