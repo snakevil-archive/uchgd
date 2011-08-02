@@ -11,30 +11,24 @@ export PATH="/usr/local/bin:/usr/bin:/bin"
 
 USER=$1
 
-REPO_NAME=$2
+REPO_AUTH=$2
 
 [ 0 -eq $# ] && {
   'cat' << USAGE
 permq: 查询指定用户在指定版本库中的权限信息。
 
-USAGE: permq <USER> <REPOSITORY>
+USAGE: permq <USER> <REPOSITORY_AUTH>
 USAGE
   exit 0
 }
 
-[ -n "${USER}" -a -n "${REPO_NAME}" ] || exit 1
-
-REPO_SRC=`'awk' -F':' '"hg"==$1{print $6}' /etc/passwd`
-
-[ -n "${REPO_SRC}" ] && REPO_SRC="${REPO_SRC}/repos" || exit 2
+[ -n "${USER}" -a -n "${REPO_AUTH}" ] || exit 1
 
 # }}}
 
 # {{{ 版本库检查
 
-REPO_AUTH="${REPO_SRC}/${REPO_NAME}.auth"
-
-[ -f "${REPO_AUTH}" -a -r "${REPO_AUTH}" ] || exit 3
+[ -f "${REPO_AUTH}" -a -r "${REPO_AUTH}" ] || exit 2
 
 # }}}
 
