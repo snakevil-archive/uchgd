@@ -7,7 +7,8 @@
 # AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
 # COPYRIGHT © 2011 uc.cn.
 
-export PATH="/usr/local/bin:/usr/bin:/bin"
+export PATH="${HOME}:/usr/local/bin:/usr/bin:/bin"
+
 UCSH=`'basename' "$0"`
 
 # {{{ 规约错误描述
@@ -96,9 +97,9 @@ readonly REPO_AUTH="${REPO_SRC}.auth"
 
 # {{{ 检查用户访问授权
 
-authuser=`'awk' '"'"${USER}"'"==$1{print $1}' "${REPO_AUTH}"`
+authuser=`'permq' "${USER}" "${REPO_NAME}" | 'awk' '{print $1}'`
 
-[ -n "${authuser}" ] \
+[ -n "${authuser}" -a '-' != "${authuser}" ] \
   || _halt 6 "${E_ACCESS_DENIED}" "${USER}" "${REPO_NAME}"
 
 # }}}
