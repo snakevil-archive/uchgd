@@ -77,7 +77,7 @@ done
 # {{{ 检查权限与分支是否匹配
 
 [ 'default' = "${branch}" ] && {
-  [ -a 'W' = "${perm}" ] \
+  [ 'W' = "${perm}" ] \
     || _halt 2 "${E_BDEF_ACCESS_DENIED}" "${USER}"
 } || exit 0
 
