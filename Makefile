@@ -261,7 +261,9 @@ user.hg:
 		} || { \
 			_item_echo "$${hint}" 'no'; \
 			hint='creates home folder...'; \
-			reason=`'sudo' -u hg 'mkdir' -p "$${HOME}" 2>&1`; \
+			reason=`'sudo' 'mkdir' -p "$${HOME}" 2>&1 \
+				&& 'sudo' 'chown' -R hg:hg "$${HOME}" 2>&1 \
+			`; \
 			[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
 				_item_echo "$${hint}" 'failed'; \
 				echo "ABORTED! $${reason}"; \
