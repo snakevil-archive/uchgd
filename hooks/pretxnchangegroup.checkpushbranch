@@ -16,9 +16,7 @@ readonly HG_URL
 # 1
 readonly E_AUTH_ACCESS_DENIED='错误！授权信息丢失。'
 # 2
-readonly E_ACCESS_DENIED='错误！帐号"%s"无权提交变更。'
-# 3
-readonly E_BDEF_ACCESS_DENIED='错误！帐号"%s"无权在分支"default"提交变更。'
+readonly E_ACCESS_DENIED='错误！帐号"%s"无权在分支"%s"提交变更。'
 
 #
 
@@ -58,13 +56,6 @@ perm=`'permq' "${USER}" "${REPO_AUTH}" | 'awk' '{print $1}'`
 
 # }}}
 
-# {{{ 检查用户是否有权提交变更集
-
-[ 'w' = "${perm}" -o 'W' = "${perm}" ] \
-  || _halt 2 "${E_ACCESS_DENIED}" "${USER}"
-
-# }}}
-
 # {{{ 读取变更集涉及的分支名称（存在 default 时结果总是为 default）
 
 for chgset in `"${HG}" log -r "${HG_NODE}:tip" --template '{node} '`
@@ -72,13 +63,18 @@ do
   [ 'xdefault' = "x${branch}" ] || branch=`"${HG}" id -b -r "${chgset}"`
 done
 
+[ -n "${branch}" ] || branch='default'
+
 # }}}
 
 # {{{ 检查权限与分支是否匹配
 
-[ 'default' = "${branch}" ] && {
-  [ 'W' = "${perm}" ] \
-    || _halt 2 "${E_BDEF_ACCESS_DENIED}" "${USER}"
+[ '*' != "${perm}" ] && {
+  for subperm in "${perm}"
+  do
+    [ "${subperm}" != "${branch}" ] || exit 0
+  done
+  _halt 2 "${E_ACCESS_DENIED}" "${USER}" "${branch}"
 } || exit 0
 
 # }}}

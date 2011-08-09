@@ -99,7 +99,7 @@ readonly REPO_AUTH="${REPO_SRC}.auth"
 
 authuser=`'permq' "${USER}" "${REPO_AUTH}" | 'awk' '{print $1}'`
 
-[ -n "${authuser}" -a '-' != "${authuser}" ] \
+[ 's-' != "s${authuser}" ] \
   || _halt 6 "${E_ACCESS_DENIED}" "${USER}" "${REPO_NAME}"
 
 # }}}

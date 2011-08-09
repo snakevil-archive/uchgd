@@ -9,7 +9,7 @@ HOOK_TYPES = changegroup commit incoming outgoing prechangegroup precommit \
 
 USED_CMDS = awk basename expr hg id sudo useradd usermod wc stat mv grep
 
-UCHGd: check user.hg authorized_keys hgrc
+UCHGd: check user.hg repos/sample authorized_keys hgrc
 
 authorized_keys: $(sort $(wildcard pubkeys/*.pub))
 	$(info GATHERING PUBKEYS)
@@ -40,7 +40,7 @@ authorized_keys: $(sort $(wildcard pubkeys/*.pub))
 			_item_echo ' +' "$${name} "; \
 		done; \
 	}; \
-	echo '';
+	echo ''
 
 check:
 	$(if $(shell 'which' which 2> /dev/null), , \
@@ -68,6 +68,7 @@ check:
 
 clean:
 	$(RM) authorized_keys hgrc
+	$(RM) -R repos/sample
 	@echo ''
 
 hgrc: $(sort $(wildcard hooks/*))
@@ -99,7 +100,7 @@ hgrc: $(sort $(wildcard hooks/*))
 		}; \
 		found=; \
 	done; \
-	echo '';
+	echo ''
 
 install: check
 	$(if $(and $(wildcard authorized_keys), $(wildcard hgrc), $(shell id hg 2> /dev/null)), , \
@@ -165,13 +166,61 @@ install: check
 	[ -d "$${HOME}/repos/sample/.hg" ] && _item_echo "$${hint}" 'yes' || { \
 		_item_echo "$${hint}" 'no'; \
 		hint='creates `sample'"'"' repository...'; \
-		reason=`'sudo' -u hg 'hg' init "$${HOME}/repos/sample" 2>&1`; \
+		reason=`'sudo' 'cp' -afR repos/sample "$${HOME}/repos/sample" 2>&1 \
+			&& 'sudo' 'chown' -R hg:hg "$${HOME}/repos/sample" 2>&1 \
+		`; \
 		[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
 			_item_echo "$${hint}" 'failed'; \
 			echo "WARNING! $${reason}"; \
 		}; \
 	}; \
-	echo 'DONE.';
+	echo 'DONE.'
+
+repos/sample:
+	$(info GENERATING 'sample' REPOSITORY)
+	@_item_echo() { \
+		local hint=" $$1"; \
+		local result="$$2"; \
+		local len=`echo -n "$${hint}" | 'wc' -c`; \
+		len=`'expr' 65 - "$${len}"`; \
+		'printf' '%s' "$${hint}"; \
+		[ -n "$${result}" ] && 'printf' "%$${len}s" "$${result}"; \
+		echo ''; \
+	}; \
+	hint='generates local dummy repository...'; \
+	reason=`$(RM) -R dummy \
+		&& 'hg' init dummy 2>&1 \
+		&& cd dummy \
+		&& 'hg' branch stable 2>&1 \
+		&& echo 'syntax: glob' > .hgignore \
+		&& echo '.*' >> .hgignore \
+		&& 'hg' add .hgignore 2>&1 \
+		&& 'hg' ci -m'PROJECT INITIALIZED' -u'Snakevil Zen <zhengyy@ucweb.com>' 2>&1 \
+	`; \
+	[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
+		_item_echo "$${hint}" 'failed'; \
+		echo "ABORTED! $${reason}"; \
+		exit 1; \
+	}; \
+	hint='generates `sample'"'"' repository...'; \
+	reason=`$(RM) -R repos/sample \
+		&& 'hg' init repos/sample 2>&1 \
+		&& cd dummy \
+		&& 'hg' push ../repos/sample 2>&1 \
+	`; \
+	[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
+		_item_echo "$${hint}" 'failed'; \
+		echo "ABORTED! $${reason}"; \
+		exit 1; \
+	}; \
+	hint='clears expired dummy respository...'; \
+	reason=`$(RM) -R dummy`; \
+	[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
+		_item_echo "$${hint}" 'failed'; \
+		echo "ABORTED! $${reason}"; \
+		exit 1; \
+	}; \
+	echo ''
 
 user.hg:
 	$(info VALIDATING USER 'hg')
@@ -212,7 +261,9 @@ user.hg:
 		} || { \
 			_item_echo "$${hint}" 'no'; \
 			hint='creates home folder...'; \
-			reason=`'sudo' -u hg 'mkdir' -p "$${HOME}" 2>&1`; \
+			reason=`'sudo' 'mkdir' -p "$${HOME}" 2>&1 \
+				&& 'sudo' 'chown' -R hg:hg "$${HOME}" 2>&1 \
+			`; \
 			[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
 				_item_echo "$${hint}" 'failed'; \
 				echo "ABORTED! $${reason}"; \
@@ -259,7 +310,7 @@ user.hg:
 			exit 1; \
 		}; \
 	}; \
-	echo '';
+	echo ''
 
 .PHONY: UCHGd check install
 
