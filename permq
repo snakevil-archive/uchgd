@@ -18,6 +18,10 @@ REPO_AUTH=$2
 permq: 查询指定用户在指定版本库中的权限信息。
 
 USAGE: permq <USER> <REPOSITORY_AUTH>
+
+RESULT:
+  <BRANCH>  <SOURCE>
+  ...
 USAGE
   exit 0
 }
@@ -34,86 +38,93 @@ USAGE
 
 # {{{ 查询权限
 
-'sed' -e 's/^\s+//' -e 's/\s+$//' -e 's/\s*=\s*/=/' "${REPO_AUTH}" \
-  | 'awk' -F'=' ' \
-      function ct(p) { \
-        if (1 < length(p)) \
-          p = substr(p, 1, 1); \
-        if ("W" == p) \
-          return 3; \
-        else if ("w" == p) \
-          return 2; \
-        else if ("r" == p) \
-          return 1; \
-        else \
-          return 0; \
+'awk' '{ \
+    gsub(/^[[:space:]]+/, ""); \
+    gsub(/[[:space:]]+$/, ""); \
+    gsub(/[[:space:]]+/, " "); \
+    gsub(/ =( |$)/, "="); \
+    print; \
+  }' "${REPO_AUTH}" \
+  | 'awk' -F'=' -v"u=${USER}" ' \
+      "*" == $1 { \
+        bo = $2; /* 『所有用户』的授权『分支列表』 */ \
       } \
-      function cv2t(v) { \
-        if (3 == v) \
-          return "W"; \
-        else if (2 == v) \
-          return "w"; \
-        else if (1 == v) \
-          return "r"; \
-        else \
-          return "-"; \
-      } \
-      function cv2v(v) { \
-        if (3 == v) \
-          return "rW-"; \
-        else if (2 == v) \
-          return "rw-"; \
-        else if (1 == v) \
-          return "r--"; \
-        else \
-          return "---"; \
-      } \
-      BEGIN { \
-        user = "'"${USER}"'"; \
-        pm["u"] = pm["g"] = pm["o"] = 0; \
-      } \
-      "@" == substr($1, 1, 1) { \
-        n = substr($1, 2, length($1) - 1); \
-        if (index(" "$2" ", " "user" ")) \
-          gn[n] = n; \
+      u == $1 { \
+        bu = $2; /* 指定『真实用户』的授权『分支列表』 */ \
       } \
       "%" == substr($1, 1, 1) { \
-        n= substr($1, 2, length($1) - 1); \
-        gp[n] = ct($2); \
+        bgx[substr($1, 2)] = $2; /* 所有『组定义』的授权『分支列表』 */ \
       } \
-      "*" == $1 { \
-        pm["o"] = ct($2); \
-      } \
-      user == $1 { \
-        pm["u"] = ct($2); \
+      "@" == substr($1, 1, 1) { \
+        gx[substr($1, 2)] = $2; /* 所有『组定义』 */ \
       } \
       END { \
-        for (n in gn) \
-          if (pm["g"] < gp[n]) { \
-            g = n; \
-            pm["g"] = gp[n]; \
+        /* 解读指定『真实用户』的最终授权 */; \
+        split(bu, bux, / /); \
+        for (i in bux) \
+          pux[bux[i]] = u; \
+        if (pux["-"]) { \
+          print "-", u; \
+          exit 0; /* 指定『真实用户』被『禁用权限』 */; \
+        } else if (pux["*"]) { \
+          print "*", u; \
+          exit 0; /* 指定『真实用户』被『全写权限』 */ \
+        } else for (i in pux) \
+          if (pux[i]) \
+            px[i] = pux[i]; \
+        /* 展开层叠的『组定义』 */; \
+        for (i in gx) { \
+          while (match(gx[i], /%[^[:space:]]+/)) { \
+            j = substr(gx[i], 1 + RSTART, RLENGTH - 1); \
+            j = i == j ? "" : gx[j]; \
+            gx[i] = substr(gx[i], 1, RSTART - 1) \
+              ""j"" \
+              substr(gx[i], RSTART + RLENGTH); \
           } \
-        pv = "-"; \
-        if (pm["u"]) { \
-          c = "u"; \
-          p = pm["u"]; \
-          pv = pv""cv2v(pm["u"]); \
+          gsub(/[[:space:]]+/, " ", gx[i]); \
         } \
-        if (pm["g"]) { \
-          if (pm["g"] > p) {\
-            c = "g"; \
-            p = pm["g"]; \
+        /* 解读所有『组定义』的最终授权 */; \
+        for (i in bgx) \
+          if (0 != index(" "gx[i]" ", " "u" ")) { \
+            split(bgx[i], bgix, / /); \
+            for (j in bgix) \
+              if (!pgx[bgix[j]]) \
+                pgx[bgix[j]] = "%"i; \
           } \
-          pv = pv""cv2v(pm["g"]); \
+        if (pgx["-"]) { \
+          if (length(px)) { \
+            for (i in px) \
+              print i, px[i]; \
+          } else \
+            print "-", pgx["-"]; \
+          exit 0; /* 『组定义』被『禁用权限』 */ \
+        } else if (pgx["*"]) { \
+          print "*", pgx["*"]; \
+          exit 0; /* 『组定义』被『全写权限』 */ \
+        } else for (i in pgx) \
+          if (pgx[i] && !px[i]) \
+            px[i] = pgx[i]; \
+        /* 解读『所有用户』的最终授权 */; \
+        split(bo, box, / /); \
+        for (i in box) { \
+          pox[box[i]] = "*"; \
         } \
-        if (pm["o"]) { \
-          if (pm["o"] > p) {\
-            c = "o"; \
-            p = pm["o"]; \
-          } \
-          pv = pv""cv2v(pm["o"]); \
+        if (pox["-"]) { \
+          if (length(px)) { \
+            for (i in px) \
+              print i, px[i]; \
+          } else \
+            print "-", "*"; \
+          exit 0; /* 『所有用户』被『禁用权限』 */ \
+        } else if (pox["*"]) { \
+          print "*", "*"; \
+          exit 0; /* 『所有用户』被『权限权限』 */ \
         } \
-        print cv2t(p), pv, g, c; \
+        for (i in pox) \
+          if (pox[i] && !px[i]) \
+            px[i] = pox[i]; \
+        for (i in px) \
+          print i, px[i]; \
       } \
     '
 
