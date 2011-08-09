@@ -43,7 +43,8 @@ USAGE
     gsub(/[[:space:]]+$/, ""); \
     gsub(/[[:space:]]+/, " "); \
     gsub(/ =( |$)/, "="); \
-    print; \
+    if (length($0) && "#" != substr($0, 1, 1)) \
+      print; \
   }' "${REPO_AUTH}" \
   | 'awk' -F'=' -v"u=${USER}" ' \
       "*" == $1 { \
