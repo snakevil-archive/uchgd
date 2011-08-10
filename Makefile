@@ -3,321 +3,228 @@
 # AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
 # COPYRIGHT © 2011 uc.cn.
 
+# {{{ 基础约定
+
+SHELL = /bin/sh
+
 HOOK_TYPES = changegroup commit incoming outgoing prechangegroup precommit \
     preoutgoing pretag pretxnchangegroup pretxncommit preupdate tag \
     update
 
 USED_CMDS = awk basename expr hg id sudo useradd usermod wc stat mv grep \
-	sort sed cat head
+	sort sed cat head mkdir touch
 
-UCHGd: check user.hg repos/sample authorized_keys hgrc
+# }}}
 
-authorized_keys: $(sort $(wildcard pubkeys/*.pub))
-	$(info GATHERING PUBKEYS)
-	@$(RM) authorized_keys; \
-	'touch' authorized_keys; \
-	_item_echo() { \
-		local hint=" $$1"; \
-		local result="$$2"; \
-		local len=`echo -n "$${hint}" | 'wc' -c`; \
-		len=`'expr' 65 - "$${len}"`; \
-		'printf' '%s' "$${hint}"; \
-		[ -n "$${result}" ] && 'printf' "%$${len}s" "$${result}"; \
-		echo ''; \
-	}; \
-	hint='seeks pubkeys...'; \
-	[ 0 -eq $(words $^) ] && { \
-		_item_echo "$${hint}" 'none'; \
-		echo 'ABORTED!'; \
-		exit 1; \
-	} || { \
-		_item_echo "$${hint}" '$(words $^) found'; \
-		for file in $^; do \
-			name=`'basename' "$${file}" '.pub'`; \
-			clob=`'cat' "$${file}"`; \
-			clob="environment=\"USER=$${name}\" $${clob}"; \
-			clob="no-pty,no-port-forwarding,no-X11-forwarding,no-agent-forwarding,$${clob}"; \
-			echo "$${clob}" >> authorized_keys; \
-			_item_echo ' +' "$${name} "; \
-		done; \
-	}; \
-	echo ''
+# {{{ 基础列表计算
 
-check:
-	$(if $(shell 'which' which 2> /dev/null), , \
-		$(error Command 'which' cannot found) \
+HOOK_FILES = $(foreach hook, $(wildcard hooks/*), \
+		$(shell test -x $(hook) &> /dev/null && echo "$(hook)") \
 	)
-	$(if $(shell 'which' printf 2> /dev/null), , \
-		$(error Command 'printf' cannot found) \
-	)
-	$(info CHECKING USED COMMANDS)
-	@_item_echo() { \
-		local hint=" $$1"; \
-		local result="$$2"; \
-		local len=`echo -n "$${hint}" | 'wc' -c`; \
-		len=`'expr' 65 - "$${len}"`; \
-		'printf' '%s' "$${hint}"; \
-		[ -n "$${result}" ] && 'printf' "%$${len}s" "$${result}"; \
-		echo ''; \
-	}; \
-	for cmd in $(sort $(USED_CMDS)); do \
-		reason=`'which' "$${cmd}" 2> /dev/null`; \
-		[ -n "$${reason}" ] || reason='not found'; \
-		_item_echo 'checks whether `'"$${cmd}' exists..." "$${reason}"; \
-		[ 'not found' != "$${reason}" ] || { \
-			exit 1; \
-		} \
-	done; \
-	echo '';
+
+DEPARTS =
+
+CP = 'cp' -af
+
+CPB = $(CP) -bS'~backup-by-uchgd~$(shell 'date' +'%y%m%d-%H%M')'
+
+# }}}
+
+# {{{ 终极目标：all
+
+all: build/cmds-chk.log build/authorized_keys.all build/hgrc build/sshd_config \
+		build/usermod.sh build/sample
+	$(CP) build/authorized_keys.all build/authorized_keys
+
+# }}}
+
+# {{{ GNU标准目标：install、uninstall、clean、check、installcheck
+
+install: build/cmds-chk.log build/authorized_keys build/hgrc build/sshd_config \
+		build/usermod.sh build/sample permq repos/sample.auth ucsh
+	'sudo' '$(SHELL)' build/usermod.sh
+	'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd > build/destdir
+	'sudo' -u hg $(CPB) -r -t `'cat' build/destdir` hooks permq repos ucsh
+	'sudo' -u hg $(CPB) build/authorized_keys `'cat' build/destdir`/.ssh/
+	'sudo' -u hg $(CPB) build/hgrc `'cat' build/destdir`/.hgrc
+	'sudo' -u hg $(CPB) build/sample `'cat' build/destdir`/repos/
+	'sudo' $(CPB) build/sshd_config /etc/ssh/sshd_config \
+		&& 'sudo' 'chown' root:root /etc/ssh/sshd_config
+	'sudo' /etc/init.d/ssh restart > /dev/null
+
+uninstall:
+	'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd > build/destdir
+	[ 1 -eq `'cat' build/destdir | 'wc' -l` ] || exit 1
+	cd `'cat' build/destdir` \
+		&& 'sudo' $(RM) -R .hgrc hooks permq repos/sample.auth .ssh/authorized_keys \
+			ucsh
+	read -p'Also destroy the `sample'"'"' repository? Type `yes'"'"' to do it: ' c \
+		&& [ 'xyes' = 'x'`echo -n "$${c}"` ] \
+		&& 'sudo' $(RM) -R `'cat' build/destdir`/repos/sample \
+		|| exit 0
 
 clean:
-	$(RM) authorized_keys hgrc
-	$(RM) -R repos/sample
-	@echo ''
+	$(RM) -R build/*
 
-hgrc: $(sort $(wildcard hooks/*))
-	$(info GATHERING HOOKS)
-	@echo '[hooks]' > hgrc; \
-	_item_echo() { \
-		local hint=" $$1"; \
-		local result="$$2"; \
-		local len=`echo -n "$${hint}" | 'wc' -c`; \
-		len=`'expr' 65 - "$${len}"`; \
-		'printf' '%s' "$${hint}"; \
-		[ -n "$${result}" ] && 'printf' "%$${len}s" "$${result}"; \
-		echo ''; \
-	}; \
-	HOME=`'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd`; \
-	[ '/' = "$(PWD)" ] || PWD="$(PWD)/"; \
-	for type in $(HOOK_TYPES); do \
-		hint='seeks `'"$${type}'"' hooks...'; \
-		[ -f "hooks/$${type}" ] && found="$${type}\n" || found=''; \
-		files=`'find' hooks -mindepth 1 -name "$${type}.*" -executable \
-				-exec 'basename' {} \; 2> /dev/null`; \
-		[ -n "$${files}" ] && found="$${found}$${files}"; \
-		[ -z "$${found}" ] && _item_echo "$${hint}" 'none' || { \
-			_item_echo "$${hint}" `echo "$${found}" | 'wc' -l`' found'; \
-			for file in `echo "$${found}" | 'sort'`; do \
-				echo "$${file} = $${HOME}/hooks/$${file}" >> hgrc; \
-				[ "$${file}" = "$${type}" ] \
-					&& _item_echo ' +' '`'"$${file}' (default) " \
-					|| _item_echo ' +' '`'"$${file}' "; \
-			done; \
-		}; \
-	done; \
-	echo ''
+check: build/cmds-chk.log
+	@echo Passed.
 
-install: check
-	$(if $(and $(wildcard authorized_keys), $(wildcard hgrc), $(shell id hg 2> /dev/null)), , \
-		$(error Run 'make' first) \
+installcheck: build/cmds-chk.log build/usermod.sh
+	@echo Passed.
+
+# }}}
+
+# {{{ 自定义目标：dept.*、build/*
+
+define DEPART_MAKE_template
+dept.$(strip $(1)): build/cmds-chk.log build/authorized_keys.$(strip $(1)) \
+		build/hgrc build/sshd_config build/usermod.sh \
+		build/sample
+	$$(CP) build/authorized_keys.$(strip $(1)) build/authorized_keys
+
+build/authorized_keys.$(strip $(1)): $$(wildcard pubkeys/$(strip $(1))/*.pub)
+	$$(warning Generates '$$@'...)
+	'mkdir' -p '$$(dir $$@)'
+	$$(RM) '$$@'
+	$$(foreach pubkey, $$^, \
+		echo -n 'no-pty,no-port-forwarding,no-X11-forwarding,' >> '$$@'; \
+		echo -n 'no-agent-forwarding,environment="USER=' >> '$$@'; \
+		echo -n '$$(strip $$(basename $$(notdir $$(pubkey))))" ' >> '$$@'; \
+		'cat' '$$(pubkey)' >> '$$@'; \
 	)
-	$(info INSTALLING)
-	@_item_echo() { \
-		local hint=" $$1"; \
-		local result="$$2"; \
-		local len=`echo -n "$${hint}" | 'wc' -c`; \
-		len=`'expr' 65 - "$${len}"`; \
-		'printf' '%s' "$${hint}"; \
-		[ -n "$${result}" ] && 'printf' "%$${len}s" "$${result}"; \
-		echo ''; \
-	}; \
-	_item_echo ' * `root'"'"' privilleges maybe required by `sudo'"'"' *'; \
-	hint='checks whether `openssh-server'"'"' installed...'; \
-	[ -f /etc/ssh/sshd_config -a -r /etc/ssh/sshd_config ] \
-		&& _item_echo "$${hint}" 'yes' \
-		|| { \
-			_item_echo "$${hint}" 'no'; \
-			echo 'ABORTED!'; \
-			exit 1; \
-		}; \
-	hint='checks whether option `PermitUserEnvironment'"'"' turned on...'; \
-	`'grep' '^PermitUserEnvironment\s*yes$$' /etc/ssh/sshd_config > /dev/null 2>&1` \
-		&& _item_echo "$${hint}" 'yes' \
-		|| { \
-			_item_echo "$${hint}" 'no'; \
-			hint='modifies `sshd_config'"'..."; \
-			reason=`cd /etc/ssh \
-				&& 'sudo' 'cp' -af sshd_config sshd_config~backup-by-uchgd 2>&1 \
-				&& 'sudo' 'chown' "$${USER}" sshd_config 2>&1 \
-				&& echo '' >> sshd_config \
-				&& echo '# Added by UCHGd' >> sshd_config \
-				&& echo 'PermitUserEnvironment yes' >> sshd_config \
-				&& 'sudo' 'chown' root sshd_config 2>&1 \
-			`; \
-			[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
-				_item_echo "$${hint}" 'failed'; \
-				echo "ABORTED! $${reason}"; \
-				exit 1; \
-			}; \
-		}; \
-	HOME=`'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd`; \
-	_item_echo 'reads home folder...' "$${HOME}"; \
-	hint='copies necessary scripts...'; \
-	reason=`'sudo' 'cp' -af hgrc "$${HOME}/.hgrc" 2>&1 \
-		&& 'sudo' 'cp' -af -t "$${HOME}" ucsh hooks permq 2>&1 \
-		&& 'sudo' 'cp' -an -t "$${HOME}" repos 2>&1 \
-		&& 'sudo' 'mkdir' -p "$${HOME}/.ssh" 2>&1 \
-		&& 'sudo' 'cp' -af authorized_keys "$${HOME}/.ssh/" 2>&1 \
-		&& cd "$${HOME}" \
-		&& 'sudo' 'chown' -R hg:hg .hgrc ucsh hooks permq .ssh repos 2>&1 \
-		&& 'sudo' 'chmod' 700 .ssh 2>&1 \
-	`; \
-	[ 0 -eq $$? ] && _item_echo "$${hint}" 'done' || { \
-		_item_echo "$${hint}" 'halt'; \
-		echo "ABORTED! $${reason}"; \
-		exit 1; \
-	}; \
-	hint='checks `sample'"'"' repository...'; \
-	[ -d "$${HOME}/repos/sample/.hg" ] && _item_echo "$${hint}" 'yes' || { \
-		_item_echo "$${hint}" 'no'; \
-		hint='creates `sample'"'"' repository...'; \
-		reason=`'sudo' 'cp' -afR repos/sample "$${HOME}/repos/sample" 2>&1 \
-			&& 'sudo' 'chown' -R hg:hg "$${HOME}/repos/sample" 2>&1 \
-		`; \
-		[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
-			_item_echo "$${hint}" 'failed'; \
-			echo "WARNING! $${reason}"; \
-		}; \
-	}; \
-	echo 'DONE.'
 
-repos/sample:
-	$(info GENERATING 'sample' REPOSITORY)
-	@_item_echo() { \
-		local hint=" $$1"; \
-		local result="$$2"; \
-		local len=`echo -n "$${hint}" | 'wc' -c`; \
-		len=`'expr' 65 - "$${len}"`; \
-		'printf' '%s' "$${hint}"; \
-		[ -n "$${result}" ] && 'printf' "%$${len}s" "$${result}"; \
-		echo ''; \
-	}; \
-	hint='generates local dummy repository...'; \
-	reason=`$(RM) -R dummy \
-		&& 'hg' init dummy 2>&1 \
-		&& cd dummy \
-		&& 'hg' branch stable 2>&1 \
-		&& echo 'syntax: glob' > .hgignore \
-		&& echo '.*' >> .hgignore \
-		&& 'hg' add .hgignore 2>&1 \
-		&& 'hg' ci -m'PROJECT INITIALIZED' -u'Snakevil Zen <zhengyy@ucweb.com>' 2>&1 \
-	`; \
-	[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
-		_item_echo "$${hint}" 'failed'; \
-		echo "ABORTED! $${reason}"; \
-		exit 1; \
-	}; \
-	hint='generates `sample'"'"' repository...'; \
-	reason=`$(RM) -R repos/sample \
-		&& 'hg' init repos/sample 2>&1 \
-		&& cd dummy \
-		&& 'hg' push ../repos/sample 2>&1 \
-	`; \
-	[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
-		_item_echo "$${hint}" 'failed'; \
-		echo "ABORTED! $${reason}"; \
-		exit 1; \
-	}; \
-	hint='clears expired dummy respository...'; \
-	reason=`$(RM) -R dummy`; \
-	[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
-		_item_echo "$${hint}" 'failed'; \
-		echo "ABORTED! $${reason}"; \
-		exit 1; \
-	}; \
-	echo ''
+DEPARTS += dept.$(strip $(1))
+endef
 
-user.hg:
-	$(info VALIDATING USER 'hg')
-	@_item_echo() { \
-		local hint=" $$1"; \
-		local result="$$2"; \
-		local len=`echo -n "$${hint}" | 'wc' -c`; \
-		len=`'expr' 65 - "$${len}"`; \
-		'printf' '%s' "$${hint}"; \
-		[ -n "$${result}" ] && 'printf' "%$${len}s" "$${result}"; \
-		echo ''; \
-	}; \
-	_item_echo ' * `root'"'"' privilleges maybe required by `sudo'"'"' *'; \
-	UID=`'awk' -F':' '"hg"==$$1{print $$3}' /etc/passwd`; \
-	GID=`'awk' -F':' '"hg"==$$1{print $$4}' /etc/passwd`; \
-	FULL=`'awk' -F':' '"hg"==$$1{print $$5}' /etc/passwd`; \
-	HOME=`'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd`; \
-	SHELL=`'awk' -F':' '"hg"==$$1{print $$7}' /etc/passwd`; \
-	hint='checks whether user `hg'"'"' exists...'; \
-	[ -n "$${UID}" ] && { \
-		_item_echo "$${hint}" 'yes'; \
-		_item_echo 'checks group...' `'id' -gn hg`; \
-		_item_echo 'checks user'"'"'s home folder...' "$${HOME}"; \
-		hint='checks whether home folder exists...'; \
-		[ -d "$${HOME}" ] && { \
-			_item_echo "$${hint}" 'yes'; \
-			OWNSHIP=`'stat' -c'%U:%G' "$${HOME}"`; \
-			_item_echo 'checks ownship of home folder...' "$${OWNSHIP}"; \
-			[ 'hg:hg' = "$${OWNSHIP}" ] || { \
-				hint='fixes ownship of home folder to `hg:hg'"'..."; \
-				reason=`'sudo' 'chown' -R hg:hg "$${HOME}" 2>&1`; \
-				[ 0 -eq $$?] && _item_echo "$${hint}" 'succeed' || { \
-					_item_echo "$${hint}" 'failed'; \
-					echo "ABORTED! $${reason}"; \
-					exit 1; \
-				}; \
-			}; \
-		} || { \
-			_item_echo "$${hint}" 'no'; \
-			hint='creates home folder...'; \
-			reason=`'sudo' 'mkdir' -p "$${HOME}" 2>&1 \
-				&& 'sudo' 'chown' -R hg:hg "$${HOME}" 2>&1 \
-			`; \
-			[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
-				_item_echo "$${hint}" 'failed'; \
-				echo "ABORTED! $${reason}"; \
-				exit 1; \
-			}; \
-		}; \
-		hint=''; \
-		_item_echo 'checks user'"'"'s fullname...' "$${FULL}"; \
-		[ 'sMercurial' = "s$${FULL}" ] || { \
-			FULL='Mercurial'; \
-			cmd=" -c'$${FULL}' "; \
-			hint='fixes user'"'"'s fullname'; \
-		}; \
-		_item_echo 'checks user'"'"'s login shell...' "$${SHELL}"; \
-		[ "s$${HOME}/ucsh" = "s$${SHELL}" ] || { \
-			SHELL="$${HOME}/ucsh"; \
-			cmd="$${cmd} -s'$${SHELL}' "; \
-			[ -n "$${hint}" ] && hint="$${hint} and login shell..." \
-				|| hint='fixes user'"'"'s login shell...'; \
-		}; \
-		[ -z "$${cmd}" ] || { \
-			reason=`eval "'sudo' 'usermod' $${cmd} hg 2>&1"`; \
-			[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
-				_item_echo "$${hint}" 'failed'; \
-				echo "ABORTED! $${reason}"; \
-				exit 1; \
-			}; \
-		}; \
-	} || { \
-		_item_echo "$${hint}" 'no'; \
-		FULL='Mercurial'; \
-		for dir in '/home' '/srv' '/var' '/tmp'; do \
-			[ -d "$${dir}" ] && { \
-				HOME="$${dir}/hg"; \
-				break; \
-			}; \
-		done; \
-		SHELL="$${HOME}/ucsh"; \
-		hint='creates user account...'; \
-		reason=`'sudo' 'useradd' -c"$${FULL}" -d"$${HOME}" -s"$${SHELL}" -l -m -r hg 2>&1`; \
-		[ 0 -eq $$? ] && _item_echo "$${hint}" 'succeed' || { \
-			_item_echo "$${hint}" 'failed'; \
-			echo "ABORTED! $${reason}"; \
-			exit 1; \
-		}; \
-	}; \
-	echo ''
+$(foreach depart, $(wildcard pubkeys/*), \
+	$(if $(wildcard $(depart)/*.pub), \
+		$(eval $(call DEPART_MAKE_template, $(notdir $(depart)))) \
+	) \
+)
 
-.PHONY: UCHGd check install
+build/authorized_keys.all: $(wildcard pubkeys/*/*.pub)
+	$(warning Generates '$@'...)
+	'mkdir' -p '$(dir $@)'
+	$(RM) '$@'
+	$(foreach pubkey, $^, \
+		echo -n 'no-pty,no-port-forwarding,no-X11-forwarding,' >> '$@'; \
+		echo -n 'no-agent-forwarding,environment="USER=' >> '$@'; \
+		echo -n '$(strip $(basename $(notdir $(pubkey))))" ' >> '$@'; \
+		'cat' '$(pubkey)' >> '$@'; \
+	)
+
+build/hgrc: $(HOOK_FILES)
+	$(warning Generates '$@'...)
+	'mkdir' -p '$(dir $@)'
+	echo '[hooks]' > '$@'
+	$(foreach hook, $(sort $(notdir $^)), \
+		echo '$(strip $(hook)) = /home/hg/hooks/$(strip $(hook))' >> '$@'; \
+	)
+
+build/sshd_config: /etc/ssh/sshd_config
+	$(warning Generates '$@'...)
+	'mkdir' -p '$(dir $@)'
+	'awk' -F'Snakevil Zen' ' \
+		/^#+[[:space:]]*Added[[:space:]]+by[[:space:]]+UCHGd/ { \
+			skip = 2; \
+			uchgd = 1; \
+			print "### Added by UCHGd on "strftime("%e %b %Y")"."; \
+		} \
+		!uchgd && /^[[:space:]]*GSSAPIAuthentication[[:space:]]+no([[:space:]]|$$)/ { \
+				gaa = 1; \
+		} \
+		!uchgd && /^[[:space:]]*GSSAPIAuthentication[[:space:]]+yes([[:space:]]|$$)/ { \
+			skip = 1; \
+			gaa = 0; \
+			print "#"$$0; \
+		} \
+		!uchgd && /^[[:space:]]*PermitUserEnvironment[[:space:]]+no([[:space:]]|$$)/ { \
+			skip = 1; \
+			pue = 0; \
+			print "#"$$0; \
+		} \
+		!uchgd && /^[[:space:]]*PermitUserEnvironment[[:space:]]+yes([[:space:]]|$$)/ { \
+			pue = 1; \
+		} \
+		!uchgd && /^[[:space:]]*UseDNS[[:space:]]+no([[:space:]]|$$)/ { \
+			ud = 1; \
+		} \
+		!uchgd && /^[[:space:]]*UseDNS[[:space:]]+yes([[:space:]]|$$)/ { \
+			skip = 1; \
+			ud = 0; \
+			print "#"$$0; \
+		} \
+		!skip{print} \
+		{if(1==skip)skip=0} \
+		END { \
+			if (!uchgd) { \
+				print ""; \
+				print "### Added by UCHGd on "strftime("%e %b %Y")"."; \
+			} \
+			if (!gaa) \
+				print "GSSAPIAuthentication no"; \
+			if (!pue) \
+				print "PermitUserEnvironment yes"; \
+			if (!ud) \
+				print "UseDNS no"; \
+		} \
+		' '$<' > '$@'
+
+build/cmds-chk.log:
+	$(warning Generates '$@'...)
+	$(foreach cmd, which printf $(sort $(USED_CMDS)), \
+		$(if $(shell 'which' $(cmd) 2> /dev/null), , \
+			$(error Command '$(cmd)' cannot be found) \
+		) \
+	)
+	'mkdir' -p '$(dir $@)'
+	'which' which printf $(sort $(USED_CMDS)) > '$@'
+
+build/usermod.sh:
+	$(warning Generates '$@'...)
+	'mkdir' -p '$(dir $@)'
+	$(RM) '$@'
+	$(if $(shell 'awk' -F':' '"hg"==$$1{print}' /etc/passwd), \
+		UID=`'awk' -F':' '"hg"==$$1{print $$3}' /etc/passwd`; \
+		GID=`'awk' -F':' '"hg"==$$1{print $$4}' /etc/passwd`; \
+		FULL=`'awk' -F':' '"hg"==$$1{print $$5}' /etc/passwd`; \
+		HOME=`'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd`; \
+		SHELL=`'awk' -F':' '"hg"==$$1{print $$7}' /etc/passwd`; \
+		[ -d "$${HOME}" ] || { \
+			echo "'mkdir' -p '$${HOME}'" >> '$@'; \
+		}; \
+		echo "'chown' hg '$${HOME}'" >> '$@'; \
+		echo "'sudo' -u hg 'mkdir' -p '$${HOME}/.ssh'" >> '$@'; \
+		echo "'chmod' 700 '$${HOME}/.ssh'" >> '$@'; \
+		[ 'xMercurial' = "x$${FULL}" ] || echo "'usermod' -c'Mercurial' hg" >> '$@'; \
+		[ "$${HOME}/ucsh" = "$${SHELL}" ] || echo "'usermod' -s'$${HOME}/ucsh' hg" >> '$@'; \
+	, \
+		echo "'useradd' -c'Mercurial' -d'/home/hg' -s'/home/hg/ucsh' -l -m -r hg" > '$@'; \
+		echo "'sudo' -u hg 'mkdir' -p '/home/hg/.ssh'" >> '$@'; \
+		echo "'chmod' 700 '/home/hg/.ssh'" >> '$@'; \
+	)
+
+build/sample: build/dummy
+	$(warning Generates '$@'...)
+	'mkdir' -p '$(dir $@)'
+	$(RM) -R '$@'
+	'hg' init '$@'
+	cd $< && 'hg' push $(abspath $@) > /dev/null
+
+build/dummy:
+	$(warning Generates '$@'...)
+	'mkdir' -p '$(dir $@)'
+	$(RM) -R '$@'
+	'hg' init '$@'
+	cd $@ && 'hg' branch stable > /dev/null
+	echo 'syntax: glob' > '$@/.hgignore'
+	echo '.*' >> '$@/.hgignore'
+	cd $@ && 'hg' add .hgignore
+	cd $@ && 'hg' ci -m'PROJECT INITIALIZED' -u'Snakevil Zen <zhengyy@ucweb.com>'
+
+# }}}
+
+.PHONY: check installcheck
 
 # vim:ft=make:fenc=utf-8:ff=unix:tw=120:ts=4:sts=4:noet:ai:si
 # vim:nowrap:sw=4:nu:nuw=4:so=5:fen:fdm=indent:fdl=0
