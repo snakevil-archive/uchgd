@@ -12,7 +12,7 @@ HOOK_TYPES = changegroup commit incoming outgoing prechangegroup precommit \
     update
 
 USED_CMDS = awk basename expr hg id sudo useradd usermod wc stat mv grep \
-	sort sed cat head mkdir touch
+	sort sed cat head mkdir touch date
 
 # }}}
 
@@ -124,11 +124,12 @@ build/hgrc: $(HOOK_FILES)
 build/sshd_config: /etc/ssh/sshd_config
 	$(warning Generates '$@'...)
 	'mkdir' -p '$(dir $@)'
-	'awk' -F'Snakevil Zen' ' \
+	date=`'date' +'%e %b %Y'`; \
+	'awk' -F'Snakevil Zen' -v"today=$${date}" ' \
 		/^#+[[:space:]]*Added[[:space:]]+by[[:space:]]+UCHGd/ { \
 			skip = 2; \
 			uchgd = 1; \
-			print "### Added by UCHGd on "strftime("%e %b %Y")"."; \
+			print "### Added by UCHGd on "today"."; \
 		} \
 		!uchgd && /^[[:space:]]*GSSAPIAuthentication[[:space:]]+no([[:space:]]|$$)/ { \
 				gaa = 1; \
@@ -159,7 +160,7 @@ build/sshd_config: /etc/ssh/sshd_config
 		END { \
 			if (!uchgd) { \
 				print ""; \
-				print "### Added by UCHGd on "strftime("%e %b %Y")"."; \
+				print "### Added by UCHGd on "today"."; \
 			} \
 			if (!gaa) \
 				print "GSSAPIAuthentication no"; \
