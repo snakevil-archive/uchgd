@@ -41,30 +41,30 @@ all: build/cmds-chk.log build/authorized_keys.all build/hgrc build/sshd_config \
 # {{{ GNU标准目标：install、uninstall、clean、check、installcheck
 
 install: build/cmds-chk.log build/authorized_keys build/hgrc build/sshd_config \
-		build/usermod.sh build/sample permq repos/sample.auth ucsh
+		build/usermod.sh build/sample permq repos/sample.auth ucsh \
+		build/home.data
 	'sudo' '$(SHELL)' build/usermod.sh
-	'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd > build/destdir
-	'sudo' -u hg $(CPB) -r -t `'cat' build/destdir` hooks permq repos ucsh
-	'sudo' -u hg $(CPB) build/authorized_keys `'cat' build/destdir`/.ssh/
-	'sudo' -u hg $(CPB) build/hgrc `'cat' build/destdir`/.hgrc
-	'sudo' -u hg $(CPB) build/sample `'cat' build/destdir`/repos/
+	'sudo' -u hg $(CPB) -r -t `'cat' build/home.data` hooks permq repos ucsh
+	'sudo' -u hg $(CPB) build/authorized_keys `'cat' build/home.data`/.ssh/
+	'sudo' -u hg $(CPB) build/hgrc `'cat' build/home.data`/.hgrc
+	'sudo' -u hg $(CPB) build/sample `'cat' build/home.data`/repos/
 	'sudo' $(CPB) build/sshd_config /etc/ssh/sshd_config \
 		&& 'sudo' 'chown' root:root /etc/ssh/sshd_config
 	'sudo' /etc/init.d/ssh restart > /dev/null
 
 uninstall:
-	'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd > build/destdir
-	[ 1 -eq `'cat' build/destdir | 'wc' -l` ] || exit 1
-	cd `'cat' build/destdir` \
+	'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd > build/home.data
+	[ 1 -eq `'cat' build/home.data | 'wc' -l` ] || exit 1
+	cd `'cat' build/home.data` \
 		&& 'sudo' $(RM) -R .hgrc hooks permq repos/sample.auth .ssh/authorized_keys \
 			ucsh
 	read -p'Also destroy the `sample'"'"' repository? Type `yes'"'"' to do it: ' c \
 		&& [ 'xyes' = 'x'`echo -n "$${c}"` ] \
-		&& 'sudo' $(RM) -R `'cat' build/destdir`/repos/sample \
+		&& 'sudo' $(RM) -R `'cat' build/home.data`/repos/sample \
 		|| exit 0
 
 clean:
-	$(RM) -R build/*
+	$(RM) -R build
 
 check: build/cmds-chk.log
 	@echo Passed.
@@ -82,11 +82,10 @@ dept.$(strip $(1)): build/cmds-chk.log build/authorized_keys.$(strip $(1)) \
 		build/sample
 	$$(CP) build/authorized_keys.$(strip $(1)) build/authorized_keys
 
-build/authorized_keys.$(strip $(1)): $$(wildcard pubkeys/$(strip $(1))/*.pub)
+build/authorized_keys.$(strip $(1)): build/ $$(wildcard pubkeys/$(strip $(1))/*.pub)
 	$$(warning Generates '$$@'...)
-	'mkdir' -p '$$(dir $$@)'
 	$$(RM) '$$@'
-	$$(foreach pubkey, $$^, \
+	$$(foreach pubkey, $$(sort $$(wordlist 2, 198486, $$^)), \
 		echo -n 'no-pty,no-port-forwarding,no-X11-forwarding,' >> '$$@'; \
 		echo -n 'no-agent-forwarding,environment="USER=' >> '$$@'; \
 		echo -n '$$(strip $$(basename $$(notdir $$(pubkey))))" ' >> '$$@'; \
@@ -102,29 +101,59 @@ $(foreach depart, $(wildcard pubkeys/*), \
 	) \
 )
 
-build/authorized_keys.all: $(wildcard pubkeys/*/*.pub)
+build/:
 	$(warning Generates '$@'...)
-	'mkdir' -p '$(dir $@)'
+	'mkdir' -p '$@'
+
+build/authorized_keys.all: build/ $(wildcard pubkeys/*/*.pub)
+	$(warning Generates '$@'...)
 	$(RM) '$@'
-	$(foreach pubkey, $^, \
+	$(foreach pubkey, $(sort $(wordlist 2, 198486, $^)), \
 		echo -n 'no-pty,no-port-forwarding,no-X11-forwarding,' >> '$@'; \
 		echo -n 'no-agent-forwarding,environment="USER=' >> '$@'; \
 		echo -n '$(strip $(basename $(notdir $(pubkey))))" ' >> '$@'; \
 		'cat' '$(pubkey)' >> '$@'; \
 	)
 
-build/hgrc: $(HOOK_FILES)
+build/cmds-chk.log: build/
 	$(warning Generates '$@'...)
-	'mkdir' -p '$(dir $@)'
-	'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd > build/destdir
+	$(foreach cmd, which printf $(sort $(USED_CMDS)), \
+		$(if $(shell 'which' $(cmd) 2> /dev/null), , \
+			$(error Command '$(cmd)' cannot be found) \
+		) \
+	)
+	'which' which printf $(sort $(USED_CMDS)) > '$@'
+
+build/dummy: build/
+	$(warning Generates '$@'...)
+	$(RM) -R '$@'
+	'hg' init '$@'
+	cd $@ && 'hg' branch stable > /dev/null
+	echo 'syntax: glob' > '$@/.hgignore'
+	echo '.*' >> '$@/.hgignore'
+	cd $@ && 'hg' add .hgignore
+	cd $@ && 'hg' ci -m'PROJECT INITIALIZED' -u'Snakevil Zen <zhengyy@ucweb.com>'
+
+build/hgrc: build/ build/home.data $(HOOK_FILES)
+	$(warning Generates '$@'...)
 	echo '[hooks]' > '$@'
-	$(foreach hook, $(sort $(notdir $^)), \
-		echo '$(strip $(hook)) = '`'cat' build/destdir`'/hooks/$(strip $(hook))' >> '$@'; \
+	$(foreach hook, $(sort $(notdir $(wordlist 3, 198486, $^))), \
+		echo '$(strip $(hook)) = '`'cat' build/home.data`'/hooks/$(strip $(hook))' >> '$@'; \
 	)
 
-build/sshd_config: /etc/ssh/sshd_config
+build/home.data: build build/usermod.sh
 	$(warning Generates '$@'...)
-	'mkdir' -p '$(dir $@)'
+	'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd > build/home.data
+	[ 1 -eq `'cat' build/home.data | 'wc' -l` ] || exit 1
+
+build/sample: build/ build/dummy
+	$(warning Generates '$@'...)
+	$(RM) -R '$@'
+	'hg' init '$@'
+	cd $(lastword $^) && 'hg' push $(abspath $@) > /dev/null
+
+build/sshd_config: build/ /etc/ssh/sshd_config
+	$(warning Generates '$@'...)
 	date=`'date' +'%e %b %Y'`; \
 	'awk' -F'Snakevil Zen' -v"today=$${date}" ' \
 		/^#+[ \t]*Added[ \t]+by[ \t]+UCHGd/ { \
@@ -170,21 +199,10 @@ build/sshd_config: /etc/ssh/sshd_config
 			if (!ud) \
 				print "UseDNS no"; \
 		} \
-		' '$<' > '$@'
+		' '$(lastword $^)' > '$@'
 
-build/cmds-chk.log:
+build/usermod.sh: build/
 	$(warning Generates '$@'...)
-	$(foreach cmd, which printf $(sort $(USED_CMDS)), \
-		$(if $(shell 'which' $(cmd) 2> /dev/null), , \
-			$(error Command '$(cmd)' cannot be found) \
-		) \
-	)
-	'mkdir' -p '$(dir $@)'
-	'which' which printf $(sort $(USED_CMDS)) > '$@'
-
-build/usermod.sh:
-	$(warning Generates '$@'...)
-	'mkdir' -p '$(dir $@)'
 	$(RM) '$@'
 	$(if $(shell 'awk' -F':' '"hg"==$$1{print}' /etc/passwd), \
 		UID=`'awk' -F':' '"hg"==$$1{print $$3}' /etc/passwd`; \
@@ -205,24 +223,6 @@ build/usermod.sh:
 		echo "'sudo' -u hg 'mkdir' -p '/home/hg/.ssh'" >> '$@'; \
 		echo "'chmod' 700 '/home/hg/.ssh'" >> '$@'; \
 	)
-
-build/sample: build/dummy
-	$(warning Generates '$@'...)
-	'mkdir' -p '$(dir $@)'
-	$(RM) -R '$@'
-	'hg' init '$@'
-	cd $< && 'hg' push $(abspath $@) > /dev/null
-
-build/dummy:
-	$(warning Generates '$@'...)
-	'mkdir' -p '$(dir $@)'
-	$(RM) -R '$@'
-	'hg' init '$@'
-	cd $@ && 'hg' branch stable > /dev/null
-	echo 'syntax: glob' > '$@/.hgignore'
-	echo '.*' >> '$@/.hgignore'
-	cd $@ && 'hg' add .hgignore
-	cd $@ && 'hg' ci -m'PROJECT INITIALIZED' -u'Snakevil Zen <zhengyy@ucweb.com>'
 
 # }}}
 
