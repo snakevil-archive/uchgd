@@ -87,18 +87,19 @@ hgrc: $(sort $(wildcard hooks/*))
 	[ '/' = "$(PWD)" ] || PWD="$(PWD)/"; \
 	for type in $(HOOK_TYPES); do \
 		hint='seeks `'"$${type}'"' hooks...'; \
-		[ -f "hooks/$${type}" ] && found="hooks/$${type}\n" || found=''; \
-		files=`'ls' "hooks/$${type}."* 2> /dev/null`; \
+		[ -f "hooks/$${type}" ] && found="$${type}\n" || found=''; \
+		files=`'find' hooks -mindepth 1 -name "$${type}.*" -executable \
+				-exec 'basename' {} \; 2> /dev/null`; \
 		[ -n "$${files}" ] && found="$${found}$${files}"; \
 		[ -z "$${found}" ] && _item_echo "$${hint}" 'none' || { \
 			_item_echo "$${hint}" `echo "$${found}" | 'wc' -l`' found'; \
-			for file in "$${found}"; do \
-				name=`'basename' "$${file}"`; \
-				_item_echo ' +' '`'"$${name}' "; \
-				echo "$${name} = $${HOME}/hooks/$${name}" >> hgrc; \
+			for file in `echo "$${found}" | 'sort'`; do \
+				echo "$${file} = $${HOME}/hooks/$${file}" >> hgrc; \
+				[ "$${file}" = "$${type}" ] \
+					&& _item_echo ' +' '`'"$${file}' (default) " \
+					|| _item_echo ' +' '`'"$${file}' "; \
 			done; \
 		}; \
-		found=; \
 	done; \
 	echo ''
 
