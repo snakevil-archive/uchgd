@@ -1,0 +1,66 @@
+#!/bin/sh
+#
+# hooks/pretxnchangegroup.suppress-multiple-heads: push 时抑制分支中的多头情况。
+#
+# AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
+# COPYRIGHT © 2011 uc.cn.
+
+export PATH="${HOME}:/usr/local/bin:/usr/bin:/bin"
+
+readonly HG
+
+readonly HG_NODE
+readonly HG_PENDING
+readonly HG_URL
+readonly HG_NAME=`'basename' "${HG_PENDING}"`
+readonly HG_SRC="${HG_PENDING}"
+readonly HG_AUTH="${HG_SRC}.auth"
+
+# {{{ 规约错误描述
+
+readonly E_MULTI_HEADS='错误！分支"%s"存在%d个头版本，请合并后再提交。'
+
+# }}}
+
+# {{{ 基础函数定义 - _halt()
+
+_halt() {
+  [ 0 -eq $# ] && exit 0
+
+  local code=$1
+  shift
+
+  [ 0 -lt $# ] && {
+    local mesg="UCHGd: $1"
+    shift
+
+    'printf' "${mesg}" "$@"
+    echo ''
+  }
+
+  exit $code
+}
+
+# }}}
+
+# {{{ 读取变更集涉及的分支名称
+
+branches=`"${HG}" log -r "${HG_NODE}:tip" \
+    --template '~{branches}\n' 2> /dev/null \
+  | 'sort' -u \
+  | 'sed' -e 's/^~$/~default/' -e 's/^~//'`
+
+# }}}
+
+# {{{ 检查各个分支是否存在多头
+
+for branch in "${branches}"
+do
+  count=`"${HG}" heads "${branch}" --template '{node}\n' | 'wc' -l`
+  [ 1 -eq "${count}" ] || _halt 1 "${E_MULTI_HEADS}" "${branch}" "${count}"
+done
+
+# }}}
+
+# vim:ft=sh:fenc=utf-8:ff=unix:tw=75:ts=2:sts=2:et:ai:si
+# vim:nowrap:sw=2:nu:nuw=4:so=5:fen:fdm=marker
