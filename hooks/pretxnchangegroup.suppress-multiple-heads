@@ -48,13 +48,14 @@ _halt() {
 branches=`"${HG}" log -r "${HG_NODE}:tip" \
     --template '~{branches}\n' 2> /dev/null \
   | 'sort' -u \
-  | 'sed' -e 's/^~$/~default/' -e 's/^~//'`
+  | 'sed' -e 's/^~$/~default/' -e 's/^~//' \
+  `
 
 # }}}
 
 # {{{ 检查各个分支是否存在多头
 
-for branch in "${branches}"
+for branch in ${branches}
 do
   count=`"${HG}" heads "${branch}" --template '{node}\n' | 'wc' -l`
   [ 1 -eq "${count}" ] || _halt 1 "${E_MULTI_HEADS}" "${branch}" "${count}"
