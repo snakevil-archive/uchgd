@@ -126,31 +126,31 @@ build/sshd_config: /etc/ssh/sshd_config
 	'mkdir' -p '$(dir $@)'
 	date=`'date' +'%e %b %Y'`; \
 	'awk' -F'Snakevil Zen' -v"today=$${date}" ' \
-		/^#+[[:space:]]*Added[[:space:]]+by[[:space:]]+UCHGd/ { \
+		/^#+[ \t]*Added[ \t]+by[ \t]+UCHGd/ { \
 			skip = 2; \
 			uchgd = 1; \
 			print "### Added by UCHGd on "today"."; \
 		} \
-		!uchgd && /^[[:space:]]*GSSAPIAuthentication[[:space:]]+no([[:space:]]|$$)/ { \
+		!uchgd && /^[ \t]*GSSAPIAuthentication[ \t]+no([ \t]|$$)/ { \
 				gaa = 1; \
 		} \
-		!uchgd && /^[[:space:]]*GSSAPIAuthentication[[:space:]]+yes([[:space:]]|$$)/ { \
+		!uchgd && /^[ \t]*GSSAPIAuthentication[ \t]+yes([ \t]|$$)/ { \
 			skip = 1; \
 			gaa = 0; \
 			print "#"$$0; \
 		} \
-		!uchgd && /^[[:space:]]*PermitUserEnvironment[[:space:]]+no([[:space:]]|$$)/ { \
+		!uchgd && /^[ \t]*PermitUserEnvironment[ \t]+no([ \t]|$$)/ { \
 			skip = 1; \
 			pue = 0; \
 			print "#"$$0; \
 		} \
-		!uchgd && /^[[:space:]]*PermitUserEnvironment[[:space:]]+yes([[:space:]]|$$)/ { \
+		!uchgd && /^[ \t]*PermitUserEnvironment[ \t]+yes([ \t]|$$)/ { \
 			pue = 1; \
 		} \
-		!uchgd && /^[[:space:]]*UseDNS[[:space:]]+no([[:space:]]|$$)/ { \
+		!uchgd && /^[ \t]*UseDNS[ \t]+no([ \t]|$$)/ { \
 			ud = 1; \
 		} \
-		!uchgd && /^[[:space:]]*UseDNS[[:space:]]+yes([[:space:]]|$$)/ { \
+		!uchgd && /^[ \t]*UseDNS[ \t]+yes([ \t]|$$)/ { \
 			skip = 1; \
 			ud = 0; \
 			print "#"$$0; \
