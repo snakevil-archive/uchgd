@@ -7,7 +7,8 @@ HOOK_TYPES = changegroup commit incoming outgoing prechangegroup precommit \
     preoutgoing pretag pretxnchangegroup pretxncommit preupdate tag \
     update
 
-USED_CMDS = awk basename expr hg id sudo useradd usermod wc stat mv grep
+USED_CMDS = awk basename expr hg id sudo useradd usermod wc stat mv grep \
+	sort sed cat head
 
 UCHGd: check user.hg repos/sample authorized_keys hgrc
 
@@ -63,6 +64,9 @@ check:
 		reason=`'which' "$${cmd}" 2> /dev/null`; \
 		[ -n "$${reason}" ] || reason='not found'; \
 		_item_echo 'checks whether `'"$${cmd}' exists..." "$${reason}"; \
+		[ 'not found' != "$${reason}" ] || { \
+			exit 1; \
+		} \
 	done; \
 	echo '';
 
