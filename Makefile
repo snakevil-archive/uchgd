@@ -116,9 +116,10 @@ build/authorized_keys.all: $(wildcard pubkeys/*/*.pub)
 build/hgrc: $(HOOK_FILES)
 	$(warning Generates '$@'...)
 	'mkdir' -p '$(dir $@)'
+	'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd > build/destdir
 	echo '[hooks]' > '$@'
 	$(foreach hook, $(sort $(notdir $^)), \
-		echo '$(strip $(hook)) = /home/hg/hooks/$(strip $(hook))' >> '$@'; \
+		echo '$(strip $(hook)) = '`'cat' build/destdir`'/hooks/$(strip $(hook))' >> '$@'; \
 	)
 
 build/sshd_config: /etc/ssh/sshd_config
