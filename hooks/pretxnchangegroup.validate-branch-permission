@@ -1,15 +1,20 @@
 #!/bin/sh
 #
-# hooks/pretxnchangegroup.checkpushbranch: 在 push 时检查对分支的写入权限。
+# hooks/pretxnchangegroup.validate-branch-permission: 在 push 时检查对分支的写入权限。
 #
 # AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
 # COPYRIGHT © 2011 uc.cn.
 
 export PATH="${HOME}:/usr/local/bin:/usr/bin:/bin"
+
 readonly HG
+
 readonly HG_NODE
 readonly HG_PENDING
 readonly HG_URL
+readonly HG_NAME=`'basename' "${HG_PENDING}"`
+readonly HG_SRC="${HG_PENDING}"
+readonly HG_AUTH="${HG_SRC}.auth"
 
 # {{{ 规约错误描述
 
@@ -17,8 +22,6 @@ readonly HG_URL
 readonly E_AUTH_ACCESS_DENIED='错误！授权信息丢失。'
 # 2
 readonly E_ACCESS_DENIED='错误！帐号"%s"无权在分支"%s"提交变更。'
-
-#
 
 # }}}
 
@@ -45,37 +48,40 @@ _halt() {
 
 # {{{ 读取用户的访问授权
 
-readonly REPO_NAME=`'basename' "${HG_PENDING}"`
-readonly REPO_SRC="${HG_PENDING}"
-readonly REPO_AUTH="${REPO_SRC}.auth"
-
-[ -f "${REPO_AUTH}" -a -r "${REPO_AUTH}" ] \
+[ -f "${HG_AUTH}" -a -r "${HG_AUTH}" ] \
   || _halt 1 "${E_AUTH_ACCESS_DENIED}"
 
-perm=`'permq' "${USER}" "${REPO_AUTH}" | 'awk' '{print $1}'`
+perm=`'permq' "${USER}" "${HG_AUTH}" | 'awk' '{print $1}'`
 
 # }}}
 
-# {{{ 读取变更集涉及的分支名称（存在 default 时结果总是为 default）
+# {{{ 读取变更集涉及的分支名称
 
-for chgset in `"${HG}" log -r "${HG_NODE}:tip" --template '{node} '`
-do
-  [ 'xdefault' = "x${branch}" ] || branch=`"${HG}" id -b -r "${chgset}"`
-done
-
-[ -n "${branch}" ] || branch='default'
+branches=`"${HG}" log -r "${HG_NODE}:tip" \
+    --template '~{branches}\n' 2> /dev/null \
+  | 'sort' -u \
+  | 'sed' -e 's/^~$/~default/' -e 's/^~//'`
 
 # }}}
 
 # {{{ 检查权限与分支是否匹配
 
-[ '*' != "${perm}" ] && {
-  for subperm in "${perm}"
-  do
-    [ "${subperm}" != "${branch}" ] || exit 0
-  done
-  _halt 2 "${E_ACCESS_DENIED}" "${USER}" "${branch}"
-} || exit 0
+case "${perm}" in
+  '-' )
+    branch=`echo "${branches}" | 'head' -n1`
+    _halt 2 "${E_ACCESS_DENIED}" "${USER}" "${branch}"
+    ;;
+  '*' )
+    exit 0
+    ;;
+esac
+
+branch=`echo "${branches}" \
+  | 'grep' -v -F "${perm}" \
+  | 'head' -n1`
+
+[ -z "${branch}" ] && exit 0 \
+  || _halt 2 "${E_ACCESS_DENIED}" "${USER}" "${branch}"
 
 # }}}
 

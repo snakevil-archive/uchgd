@@ -48,32 +48,34 @@ USAGE
   }' "${REPO_AUTH}" \
   | 'awk' -F'=' -v"u=${USER}" ' \
       "*" == $1 { \
-        bo = $2; /* 『所有用户』的授权『分支列表』 */ \
+        bo = $2; # 『所有用户』的授权『分支列表』 \
       } \
       u == $1 { \
-        bu = $2; /* 指定『真实用户』的授权『分支列表』 */ \
+        bu = $2; # 指定『真实用户』的授权『分支列表』 \
       } \
       "%" == substr($1, 1, 1) { \
-        bgx[substr($1, 2)] = $2; /* 所有『组定义』的授权『分支列表』 */ \
+        bgx[substr($1, 2)] = $2; # 所有『组定义』的授权『分支列表』 \
       } \
       "@" == substr($1, 1, 1) { \
-        gx[substr($1, 2)] = $2; /* 所有『组定义』 */ \
+        gx[substr($1, 2)] = $2; # 所有『组定义』 \
       } \
       END { \
-        /* 解读指定『真实用户』的最终授权 */; \
+        # 解读指定『真实用户』的最终授权 \
         split(bu, bux, / /); \
         for (i in bux) \
           pux[bux[i]] = u; \
         if (pux["-"]) { \
           print "-", u; \
-          exit 0; /* 指定『真实用户』被『禁用权限』 */; \
+          exit 0; # 指定『真实用户』被『禁用权限』 \
         } else if (pux["*"]) { \
           print "*", u; \
-          exit 0; /* 指定『真实用户』被『全写权限』 */ \
+          exit 0; # 指定『真实用户』被『全写权限』 \
         } else for (i in pux) \
-          if (pux[i]) \
+          if (pux[i]) { \
+            pxl++; \
             px[i] = pux[i]; \
-        /* 展开层叠的『组定义』 */; \
+          } \
+        # 展开层叠的『组定义』 \
         for (i in gx) { \
           while (match(gx[i], /%[^[:space:]]+/)) { \
             j = substr(gx[i], 1 + RSTART, RLENGTH - 1); \
@@ -84,7 +86,7 @@ USAGE
           } \
           gsub(/[[:space:]]+/, " ", gx[i]); \
         } \
-        /* 解读所有『组定义』的最终授权 */; \
+        # 解读所有『组定义』的最终授权 \
         for (i in bgx) \
           if (0 != index(" "gx[i]" ", " "u" ")) { \
             split(bgx[i], bgix, / /); \
@@ -93,39 +95,42 @@ USAGE
                 pgx[bgix[j]] = "%"i; \
           } \
         if (pgx["-"]) { \
-          if (length(px)) { \
+          if (pxl) { \
             for (i in px) \
               print i, px[i]; \
           } else \
             print "-", pgx["-"]; \
-          exit 0; /* 『组定义』被『禁用权限』 */ \
+          exit 0; # 『组定义』被『禁用权限』 \
         } else if (pgx["*"]) { \
           print "*", pgx["*"]; \
-          exit 0; /* 『组定义』被『全写权限』 */ \
+          exit 0; # 『组定义』被『全写权限』 \
         } else for (i in pgx) \
-          if (pgx[i] && !px[i]) \
+          if (pgx[i] && !px[i]) { \
+            pxl++; \
             px[i] = pgx[i]; \
-        /* 解读『所有用户』的最终授权 */; \
+          } \
+        # 解读『所有用户』的最终授权 \
         split(bo, box, / /); \
         for (i in box) { \
           pox[box[i]] = "*"; \
         } \
         if (pox["-"]) { \
-          if (length(px)) { \
+          if (pxl) { \
             for (i in px) \
               print i, px[i]; \
           } else \
             print "-", "*"; \
-          exit 0; /* 『所有用户』被『禁用权限』 */ \
+          exit 0; # 『所有用户』被『禁用权限』 \
         } else if (pox["*"]) { \
           print "*", "*"; \
-          exit 0; /* 『所有用户』被『权限权限』 */ \
+          exit 0; # 『所有用户』被『权限权限』 \
         } \
         for (i in pox) \
           if (pox[i] && !px[i]) \
             px[i] = pox[i]; \
         for (i in px) \
-          print i, px[i]; \
+          if (px[i]) \
+            print i, px[i]; \
       } \
     '
 

@@ -1,4 +1,3 @@
 syntax: glob
 .*
-authorized_keys
-hgrc
+build/*
