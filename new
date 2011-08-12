@@ -1,0 +1,105 @@
+#!/bin/sh
+#
+# new: 创建指定名称的新版本库。
+#
+# AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
+# COPYRIGHT © 2011 uc.cn.
+
+export PATH="/usr/local/bin:/usr/bin:/bin"
+
+# {{{ 规约错误描述
+
+# 1
+readonly E_BROKEN_UCHGD='所需模块无法找到，请重新下载UCHGd。'
+# 2
+readonly E_HG_NOT_BORN='系统用户hg不存在。'
+# 3
+readonly E_REPO_ROOT_MISSING='无法遍历现有版本库。'
+# 4
+readonly E_CREATION_FAILURE='版本库"%s"创建失败…'
+
+# }}}
+
+# {{{ 基础函数定义 - _halt()
+
+_halt() {
+  [ 0 -eq $# ] && exit 0
+
+  local code=$1
+  shift
+
+  [ 0 -lt $# ] && {
+    local mesg="UCHGd: $1"
+    shift
+
+    'printf' "${mesg}" "$@"
+    echo ''
+  }
+
+  exit $code
+}
+
+# }}}
+
+# {{{ 检查环境信息
+
+cd `'dirname' $0`
+
+[ -x 'ucsh' -a -x 'permq' -a -f 'Makefile' ] \
+  || _halt 1 "${E_BROKEN_UCHGD}"
+
+REPO_ROOT=`'awk' -F':' '"hg"==$1{print $6}' /etc/passwd`
+
+[ -n "${REPO_ROOT}" ] || _halt 2 "${E_HG_NOT_BORN}"
+
+readonly REPO_ROOT="${REPO_ROOT}/repos"
+
+[ -d "${REPO_ROOT}" ] || _halt 3 "${E_REPO_ROOT_MISSING}"
+
+REPO_LIST=`'find' "${REPO_ROOT}" -mindepth 1 -maxdepth 1 \
+  -type d -exec basename {} \; \
+`
+
+# }}}
+
+# {{{ 读取有效的新版本库的名称
+
+while [ -z "${REPO_NAME}" ]
+do
+  read -p '新版本库的名称是：' REPO_NAME
+  [ -z "${REPO_NAME}" ] && {
+    echo '> 版本库名称不能为空…'
+    continue
+  }
+  found=`echo "${REPO_LIST}" | 'grep' "^${REPO_NAME}$"`
+  [ -n "${found}" ] && {
+    echo '> 该名称已被占用…'
+    REPO_NAME=
+    continue
+  }
+  trim=`echo "${REPO_NAME}" | 'tr' -d '[:space:]'`
+  [ "${trim}" != "${REPO_NAME}" ] && {
+    echo '> 名称中不能使用空白字符…'
+    REPO_NAME=
+    continue
+  }
+done
+
+# }}}
+
+# {{{ 创建版本库
+
+'make' build/sample > /dev/null \
+  && 'sudo' 'cp' -afr build/sample "${REPO_ROOT}/${REPO_NAME}" \
+  && 'sudo' 'chown' -R hg:hg "${REPO_ROOT}/${REPO_NAME}" \
+  || _halt 4 "${E_CREATION_FAILURE}" "${REPO_NAME}"
+
+echo ''
+
+_halt 0 '版本库"%s"创建成功！请自行配置权限"%s"。' "${REPO_NAME}" \
+  "${REPO_ROOT}/${REPO_NAME}.auth"
+
+# }}}
+
+# vim:ft=sh:fenc=utf-8:ff=unix:tw=75:ts=2:sts=2:et:ai:si
+# vim:nowrap:sw=2:nu:nuw=4:so=5:fen:fdm=marker

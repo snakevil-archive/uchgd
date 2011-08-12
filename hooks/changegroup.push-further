@@ -1,0 +1,56 @@
+#!/bin/sh
+#
+# hooks/changegroup.push-further: 在 push 结束前自动向更上级 push。
+#
+# AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
+# COPYRIGHT © 2011 uc.cn.
+
+export PATH="${HOME}:/usr/local/bin:/usr/bin:/bin"
+
+readonly HG
+
+readonly HG_NODE
+readonly HG_PENDING
+readonly HG_SOURCE
+readonly HG_URL
+
+readonly HG_SRC="${HG_PENDING}"
+readonly HG_NAME=`'basename' "${HG_PENDING}"`
+readonly HG_AUTH="${HG_SRC}.auth"
+
+# {{{ 鉴别操作类型
+
+case "${HG_SOURCE}" in
+  'serve' | 'push' )
+    ;;
+  * )
+    exit 0
+    ;;
+esac
+
+# }}}
+
+# {{{ 检查是否存在上级版本库
+
+parent=`"${HG}" paths 2> /dev/null \
+  | 'awk' -F' = ' '"further"==$1{print $2}' \
+`
+
+[ -n "${parent}" ] || exit 0
+
+# }}}
+
+# {{{ 向上级版本库 push
+
+report=`"${HG}" push further 2>&1 > /dev/null`
+code=$?
+
+[ 0 -eq $code ] || {
+  echo "${report}" | 'sed' -e 's/^/PUSH-FURTHER: /'
+  exit $code
+}
+
+# }}}
+
+# vim:ft=sh:fenc=utf-8:ff=unix:tw=75:ts=2:sts=2:et:ai:si
+# vim:nowrap:sw=2:nu:nuw=4:so=5:fen:fdm=marker

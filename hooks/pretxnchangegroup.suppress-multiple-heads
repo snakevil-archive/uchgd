@@ -11,9 +11,11 @@ readonly HG
 
 readonly HG_NODE
 readonly HG_PENDING
+readonly HG_SOURCE
 readonly HG_URL
-readonly HG_NAME=`'basename' "${HG_PENDING}"`
+
 readonly HG_SRC="${HG_PENDING}"
+readonly HG_NAME=`'basename' "${HG_PENDING}"`
 readonly HG_AUTH="${HG_SRC}.auth"
 
 # {{{ 规约错误描述
@@ -40,6 +42,18 @@ _halt() {
 
   exit $code
 }
+
+# }}}
+
+# {{{ 鉴别操作类型
+
+case "${HG_SOURCE}" in
+  'serve' | 'push' )
+    ;;
+  * )
+    exit 0
+    ;;
+esac
 
 # }}}
 
