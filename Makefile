@@ -44,6 +44,8 @@ DIST_FILE = dist./uchgd-$(strip $(if $(shell [ 'tip' = `'hg' parents --template 
 	$(shell 'hg' parents --template 'nr{rev}') \
 )).tar.gz
 
+DEPARTS =
+
 # }}}
 
 # {{{ 终极目标：all
@@ -75,6 +77,8 @@ build/authorized_keys.$(strip $(1)): $$(wildcard pubkeys/$(strip $(1))/*.pub)
 		echo -n '$$(strip $$(basename $$(notdir $$(pubkey))))" ' >> '$$@'; \
 		'cat' '$$(pubkey)' >> '$$@'; \
 	)
+
+DEPARTS += $(strip $(1))
 endef
 
 $(foreach depart, $(wildcard pubkeys/*), \
@@ -323,6 +327,59 @@ $(DIST_FILE):
 	$(warning Generates '$@'...)
 	'mkdir' -p '$(@D)'
 	'hg' archive -X '.*' '$(DIST_FILE)'
+
+# }}}
+
+# {{{ 帮助目标：help
+
+help: help.make help.archive help.dist help.help
+
+help.archive:
+	@echo '* archive'; \
+	echo '    备份 $(HG_HOME)/repos 目录下的所有非空版本库到 export 目录'; \
+	echo '* archiveclean'; \
+	echo '    清除历史备份数据'; \
+	echo '* restore'; \
+	echo '    从 export 目录还原 $(HG_HOME)/repos 目录中缺少的版本库'; \
+	echo ''
+
+help.dist:
+	@echo '* dist'; \
+	echo '    将 UCHGd 的当前版本打包到 dist. 目录'; \
+	echo '* distclean'; \
+	echo '    清除历史打包数据'; \
+	echo ''
+
+help.help:
+	@echo '* help'; \
+	echo '    查看完整的指令帮助'; \
+	echo '* help.archive'; \
+	echo '    查看备份还原相关的指令帮助'; \
+	echo '* help.dist'; \
+	echo '    查看打包发布相关的指令帮助'; \
+	echo '* help.make'; \
+	echo '    查看编译安装相关的指令帮助'; \
+	echo ''
+
+help.make:
+	@echo '* all'; \
+	echo '    编译；包含所有部门的人员信息'; \
+	echo '* check'; \
+	echo '    检查是否可编译'; \
+	echo '* clean'; \
+	echo '    清除编译产生的文件'; \
+	[ -z '$(DEPARTS)' ] \
+		|| for depart in $(DEPARTS); do \
+			echo "* dept.$${depart}"; \
+			echo "    编译；只包含 $${depart} 部门的人员信息"; \
+		done; \
+	echo '* install'; \
+	echo '    安装；需要先编译'; \
+	echo '* installcheck'; \
+	echo '    检查是否可安装'; \
+	echo '* uninstall'; \
+	echo '    卸载'; \
+	echo ''
 
 # }}}
 
