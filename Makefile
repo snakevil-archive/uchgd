@@ -93,7 +93,7 @@ clean:
 	$(RM) -R build
 
 install: build/cmds-chk.log build/authorized_keys build/hgrc build/sshd_config \
-		build/usermod.sh build/sample permq repos/sample.auth ucsh
+		build/usermod.sh build/sample repos/sample.auth
 	$(warning Runs '$@'...)
 	'sudo' '$(SHELL)' build/usermod.sh
 	'sudo' -u hg $(CP) -R -t '$(HG_HOME)/' hooks permq repos ucsh
@@ -273,15 +273,19 @@ BACKUP_FILES += export/$(strip $(2))
 endef
 
 $(foreach repos, $(HG_REPOS), \
-	$(eval $(call ARCHIVE_MAKE_template, $(repos), \
-		$(addprefix $(notdir $(repos)), \
-			$(addsuffix .tar.gz, \
-				$(shell cd '$(dir $(repos))' \
+	$(if $(shell cd '$(dir $(repos))' \
 					&& 'hg' log -r'tip' --template '-rev{rev}~{node|short}' '$(notdir $(repos))' \
+		), \
+		$(eval $(call ARCHIVE_MAKE_template, $(repos), \
+			$(addprefix $(notdir $(repos)), \
+				$(addsuffix .tar.gz, \
+					$(shell cd '$(dir $(repos))' \
+						&& 'hg' log -r'tip' --template '-rev{rev}~{node|short}' '$(notdir $(repos))' \
+					) \
 				) \
 			) \
-		) \
-	)) \
+		)) \
+	) \
 )
 
 #
