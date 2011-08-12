@@ -263,9 +263,11 @@ build/usermod.sh: /etc/passwd
 
 define ARCHIVE_MAKE_template
 export/$(strip $(2)): $(strip $(1))
-	$$(warning Archives '$$(lastword $$^)'...)
+	$$(warning Archives '$$^'...)
 	'mkdir' -p $$(@D)
-	tar zcf '$$@' --owner=hg --group=hg -C '$$(dir $$(lastword $$^))' '$$(notdir $$(lastword $$^))'
+	'tar' cf '$$(basename $$@)' -C '$$(dir $$^)' '$$(notdir $$^)'
+	[ ! -f '$$^.auth' ] || 'tar' rf '$$(basename $$@)' -C '$$(dir $$^)' '$$(notdir $$^).auth'
+	'gzip' -9 '$$(basename $$@)'
 
 BACKUP_FILES += export/$(strip $(2))
 endef
