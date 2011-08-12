@@ -22,7 +22,7 @@ USED_CMDS = awk basename expr hg id sudo useradd usermod wc stat mv grep \
 
 # }}}
 
-# {{{ 基础列表计算
+# {{{ 基础计算
 
 HOOK_FILES = $(foreach hook, $(wildcard hooks/*), \
 	$(shell [ -x $(hook) ] && echo '$(hook)') \
@@ -39,6 +39,11 @@ HG_REPOS = $(foreach file, $(wildcard $(HG_HOME)/repos/*), \
 
 BACKUP_FILES =
 
+DIST_FILE = dist./uchgd-$(strip $(if $(shell [ 'tip' = `'hg' parents --template '{tags}'` ] || echo 1), \
+	$(shell 'hg' parents --template 'v{tags}'), \
+	$(shell 'hg' parents --template 'nr{rev}') \
+)).tar.gz
+
 # }}}
 
 # {{{ 终极目标：all
@@ -50,7 +55,7 @@ all: build/cmds-chk.log build/authorized_keys.all build/hgrc build/sshd_config \
 
 # }}}
 
-# {{{ 动态目标：dept.*、build/authorized_keys.*
+# {{{ 编译安装目标：check、clean、dept.*、install、installcheck、uninstall
 
 define DEPART_MAKE_template
 dept.$(strip $(1)): build/cmds-chk.log build/authorized_keys.$(strip $(1)) \
@@ -78,33 +83,7 @@ $(foreach depart, $(wildcard pubkeys/*), \
 	) \
 )
 
-# }}}
-
-# {{{ 动态目标：export/*
-
-define ARCHIVE_MAKE_template
-export/$(strip $(2)): export/ $(strip $(1))
-	$$(warning Archives '$$(lastword $$^)'...)
-	tar zcf '$$@' --owner=hg --group=hg -C '$$(dir $$(lastword $$^))' '$$(notdir $$(lastword $$^))'
-
-BACKUP_FILES += export/$(strip $(2))
-endef
-
-$(foreach repos, $(HG_REPOS), \
-	$(eval $(call ARCHIVE_MAKE_template, $(repos), \
-		$(addprefix $(notdir $(repos)), \
-			$(addsuffix .tar.gz, \
-				$(shell cd '$(dir $(repos))' \
-					&& 'hg' log -r'tip' --template '-rev{rev}~{node|short}' '$(notdir $(repos))' \
-				) \
-			) \
-		) \
-	)) \
-)
-
-# }}}
-
-# {{{ GNU标准目标：install、uninstall、clean、check、installcheck
+#
 
 check: build/cmds-chk.log
 	$(warning Runs '$@'...)
@@ -152,20 +131,7 @@ uninstall:
 		&& 'sudo' $(RM) -R '$(HG_HOME)/repos/sample' \
 		|| exit 0
 
-# }}}
-
-# {{{ 自定义目标：archive、archiveclean
-
-archive: $(BACKUP_FILES)
-	$(warning Runs '$@'...)
-
-archiveclean:
-	$(warning Runs '$@'...)
-	$(RM) -R export
-
-# }}}
-
-# {{{ 自定义目标：build/*
+#
 
 build/authorized_keys.all: $(wildcard pubkeys/*/*.pub)
 	$(warning Generates '$@'...)
@@ -293,11 +259,55 @@ build/usermod.sh: /etc/passwd
 
 # }}}
 
-# {{{ 自定义目标：export/*
+# {{{ 备份目标：archive、archiveclean
 
-export/:
+define ARCHIVE_MAKE_template
+export/$(strip $(2)): $(strip $(1))
+	$$(warning Archives '$$(lastword $$^)'...)
+	'mkdir' -p $$(@D)
+	tar zcf '$$@' --owner=hg --group=hg -C '$$(dir $$(lastword $$^))' '$$(notdir $$(lastword $$^))'
+
+BACKUP_FILES += export/$(strip $(2))
+endef
+
+$(foreach repos, $(HG_REPOS), \
+	$(eval $(call ARCHIVE_MAKE_template, $(repos), \
+		$(addprefix $(notdir $(repos)), \
+			$(addsuffix .tar.gz, \
+				$(shell cd '$(dir $(repos))' \
+					&& 'hg' log -r'tip' --template '-rev{rev}~{node|short}' '$(notdir $(repos))' \
+				) \
+			) \
+		) \
+	)) \
+)
+
+#
+
+archive: $(BACKUP_FILES)
+	$(warning Runs '$@'...)
+
+archiveclean:
+	$(warning Runs '$@'...)
+	$(RM) -R export
+
+# }}}
+
+# {{{ 打包目标：dist、distclean
+
+dist: $(DIST_FILE)
+	$(warning Runs '$@'...)
+
+distclean:
+	$(warning Runs '$@'...)
+	$(RM) -R dist.
+
+#
+
+$(DIST_FILE):
 	$(warning Generates '$@'...)
-	'mkdir' -p '$(@)'
+	'mkdir' -p '$(@D)'
+	'hg' archive -X '.*' '$(DIST_FILE)'
 
 # }}}
 
