@@ -293,6 +293,15 @@ archiveclean:
 	$(warning Runs '$@'...)
 	$(RM) -R export
 
+restore: $(wildcard export/*-rev*~????????????.tar.gz)
+	$(warning Runs '$@'...)
+	$(if $(wildcard $(HG_HOME)/repos), , $(error 'UCHGd' should be installed first))
+	$(foreach archive, $^, \
+		$(if $(wildcard $(HG_HOME)/repos/$(shell 'tar' tf '$(archive)' | 'head' -n1)), , \
+			'sudo' -u hg 'tar' zxf '$(archive)' -C '$(HG_HOME)/repos'; \
+		) \
+	)
+
 # }}}
 
 # {{{ 打包目标：dist、distclean
