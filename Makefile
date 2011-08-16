@@ -278,13 +278,13 @@ endef
 
 $(foreach repos, $(HG_REPOS), \
 	$(if $(shell cd '$(dir $(repos))' \
-					&& 'hg' log -r'tip' --template '-rev{rev}~{node|short}' '$(notdir $(repos))' \
+					&& 'hg' log -r'tip' --template '-rev{rev}~{node|short}' '$(notdir $(repos))' 2> /dev/null \
 		), \
 		$(eval $(call ARCHIVE_MAKE_template, $(repos), \
 			$(addprefix $(notdir $(repos)), \
 				$(addsuffix .tar.gz, \
 					$(shell cd '$(dir $(repos))' \
-						&& 'hg' log -r'tip' --template '-rev{rev}~{node|short}' '$(notdir $(repos))' \
+						&& 'hg' log -r'tip' --template '-rev{rev}~{node|short}' '$(notdir $(repos))' 2> /dev/null \
 					) \
 				) \
 			) \
