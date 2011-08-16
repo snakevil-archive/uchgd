@@ -27,22 +27,10 @@ USED_CMDS = awk basename expr hg id sudo useradd usermod wc stat mv grep \
 HOOK_FILES = $(foreach hook, $(wildcard hooks/*), \
 	$(shell [ -x $(hook) ] && echo '$(hook)') \
 )
+
 HG_HOME = $(shell 'awk' -F':' '"hg"==$$1{print $$6}' /etc/passwd)
-
 HG_HOME := $(if $(HG_HOME), $(HG_HOME), /home/hg)
-
-HG_HOME := $(strip $(HG_HOME))
-
-HG_REPOS = $(foreach file, $(wildcard $(HG_HOME)/repos/*), \
-	$(shell [ -d '$(file)' ] && echo '$(file)') \
-)
-
-BACKUP_FILES =
-
-DIST_FILE = dist./uchgd-$(strip $(if $(shell [ 'tip' = `'hg' parents --template '{tags}'` ] || echo 1), \
-	$(shell 'hg' parents --template 'v{tags}'), \
-	$(shell 'hg' parents --template 'nr{rev}') \
-)).tar.gz
+export HG_HOME := $(strip $(HG_HOME))
 
 DEPARTS =
 
@@ -263,125 +251,7 @@ build/usermod.sh: /etc/passwd
 
 # }}}
 
-# {{{ 备份目标：archive、archiveclean
-
-define ARCHIVE_MAKE_template
-export/$(strip $(2)): $(strip $(1))
-	$$(warning Archives '$$^'...)
-	'mkdir' -p $$(@D)
-	'tar' cf '$$(basename $$@)' -C '$$(dir $$^)' '$$(notdir $$^)'
-	[ ! -f '$$^.auth' ] || 'tar' rf '$$(basename $$@)' -C '$$(dir $$^)' '$$(notdir $$^).auth'
-	'gzip' -9 '$$(basename $$@)'
-
-BACKUP_FILES += export/$(strip $(2))
-endef
-
-$(foreach repos, $(HG_REPOS), \
-	$(if $(shell cd '$(dir $(repos))' \
-					&& 'hg' log -r'tip' --template '-rev{rev}~{node|short}' '$(notdir $(repos))' 2> /dev/null \
-		), \
-		$(eval $(call ARCHIVE_MAKE_template, $(repos), \
-			$(addprefix $(notdir $(repos)), \
-				$(addsuffix .tar.gz, \
-					$(shell cd '$(dir $(repos))' \
-						&& 'hg' log -r'tip' --template '-rev{rev}~{node|short}' '$(notdir $(repos))' 2> /dev/null \
-					) \
-				) \
-			) \
-		)) \
-	) \
-)
-
-#
-
-archive: $(BACKUP_FILES)
-	$(warning Runs '$@'...)
-
-archiveclean:
-	$(warning Runs '$@'...)
-	$(RM) -R export
-
-restore: $(wildcard export/*-rev*~????????????.tar.gz)
-	$(warning Runs '$@'...)
-	$(if $(wildcard $(HG_HOME)/repos), , $(error 'UCHGd' should be installed first))
-	$(foreach archive, $^, \
-		$(if $(wildcard $(HG_HOME)/repos/$(shell 'tar' tf '$(archive)' | 'head' -n1)), , \
-			'sudo' -u hg 'tar' zxf '$(archive)' -C '$(HG_HOME)/repos'; \
-		) \
-	)
-
-# }}}
-
-# {{{ 打包目标：dist、distclean
-
-dist: $(DIST_FILE)
-	$(warning Runs '$@'...)
-
-distclean:
-	$(warning Runs '$@'...)
-	$(RM) -R dist.
-
-#
-
-$(DIST_FILE):
-	$(warning Generates '$@'...)
-	'mkdir' -p '$(@D)'
-	'hg' archive -X '.*' '$(DIST_FILE)'
-
-# }}}
-
-# {{{ 帮助目标：help
-
-help: help.make help.archive help.dist help.help
-
-help.archive:
-	@echo '* archive'; \
-	echo '    备份 $(HG_HOME)/repos 目录下的所有非空版本库到 export 目录'; \
-	echo '* archiveclean'; \
-	echo '    清除历史备份数据'; \
-	echo '* restore'; \
-	echo '    从 export 目录还原 $(HG_HOME)/repos 目录中缺少的版本库'; \
-	echo ''
-
-help.dist:
-	@echo '* dist'; \
-	echo '    将 UCHGd 的当前版本打包到 dist. 目录'; \
-	echo '* distclean'; \
-	echo '    清除历史打包数据'; \
-	echo ''
-
-help.help:
-	@echo '* help'; \
-	echo '    查看完整的指令帮助'; \
-	echo '* help.archive'; \
-	echo '    查看备份还原相关的指令帮助'; \
-	echo '* help.dist'; \
-	echo '    查看打包发布相关的指令帮助'; \
-	echo '* help.make'; \
-	echo '    查看编译安装相关的指令帮助'; \
-	echo ''
-
-help.make:
-	@echo '* all'; \
-	echo '    编译；包含所有部门的人员信息'; \
-	echo '* check'; \
-	echo '    检查是否可编译'; \
-	echo '* clean'; \
-	echo '    清除编译产生的文件'; \
-	[ -z '$(DEPARTS)' ] \
-		|| for depart in $(DEPARTS); do \
-			echo "* dept.$${depart}"; \
-			echo "    编译；只包含 $${depart} 部门的人员信息"; \
-		done; \
-	echo '* install'; \
-	echo '    安装；需要先编译'; \
-	echo '* installcheck'; \
-	echo '    检查是否可安装'; \
-	echo '* uninstall'; \
-	echo '    卸载'; \
-	echo ''
-
-# }}}
+include Makefile~*.mk
 
 .PHONY:
 
