@@ -3,25 +3,14 @@
 # AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
 # COPYRIGHT © 2011 uc.cn.
 
-HG_REPOS = $(foreach file, $(wildcard $(HG_HOME)/repos/*), \
+HG_REPOS = $(foreach file, $(wildcard $(HG_HOME)/repos/*.hg), \
 	$(if $(wildcard $(file)/.hg/store/data/*), $(file)) \
 )
 
 ifneq "$(strip $(HG_REPOS))" ""
 
-BACKUP_FILES = $(addprefix export/, $(foreach repos, $(HG_REPOS), \
-		$(addprefix $(notdir $(repos)), $(shell cd '$(repos)' \
-				&& 'hg' log -r'tip' --template '-rev{rev}~{node|short}.tar.gz' 2> /dev/null \
-			) \
-		) \
-	) \
-)
-
-archive: $(BACKUP_FILES)
-	$(warning Runs '$@'...)
-
 define ARCHIVE_MAKE_template
-$(2): $(1) $(wildcard $(1).auth)
+$(2): $(1) $(wildcard $(basename $(1)).auth)
 	$$(warning Archives '$$<'...)
 	'mkdir' -p $$(@D)
 	$$(RM) '$$@'
@@ -30,12 +19,14 @@ $(2): $(1) $(wildcard $(1).auth)
 		'tar' rf '$$(basename $$@)' -C '$$(dir $$<)' '$$(notdir $$(lastword $$^))' \
 	)
 	'gzip' -9 '$$(basename $$@)'
+
+BACKUP_FILES += $(2)
 endef
 
 $(foreach repos, $(HG_REPOS), \
 	$(eval $(call ARCHIVE_MAKE_template, \
 			$(repos), \
-			$(addprefix export/$(notdir $(repos)), \
+			$(addprefix export/$(basename $(notdir $(repos))), \
 				$(shell cd '$(repos)' \
 					&& 'hg' log -r'tip' --template '-rev{rev}~{node|short}.tar.gz' 2> /dev/null \
 				) \
@@ -44,9 +35,12 @@ $(foreach repos, $(HG_REPOS), \
 	) \
 )
 
+archive: $(BACKUP_FILES)
+	$(warning Runs '$@'...)
+
 endif
 
-ifneq "$(wildcard export/*-rev*~????????????.tar.gz)" ""
+ifneq "$(strip $(wildcard export/*-rev*~????????????.tar.gz))" ""
 
 archiveclean:
 	$(warning Runs '$@'...)
