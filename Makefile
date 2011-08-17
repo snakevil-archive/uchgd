@@ -179,7 +179,12 @@ build/dummy.hg:
 	echo 'syntax: glob' > $@/.hgignore
 	echo '.*' >> $@/.hgignore
 	cd $@ && 'hg' add .hgignore
-	cd $@ && 'hg' ci -m'PROJECT INITIALIZED' -u'Snakevil Zen <zhengyy@ucweb.com>'
+	cd $@ && 'hg' ci -m'PROJECT INITIALIZED' -u'$(strip $(if $(wildcard $(HOME)/.ssh/id_rsa.pub), \
+		$(shell 'awk' '{for(i=3;i<=NF;i++)j=j" "$$i;print substr(j, 2)}' '$(HOME)/.ssh/id_rsa.pub'), \
+		$(shell 'awk' -F':' -v'host='`'hostname'` \
+			'"$(USER)"==$$1{gsub(/,*$$/, "", $$5);print $$5" <"$$1"@"host">"}' /etc/passwd \
+		) \
+	))'
 
 # }}}
 
