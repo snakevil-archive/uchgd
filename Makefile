@@ -70,18 +70,31 @@ install: build/authorized_keys build/cmds-chk.log build/hgrc build/sshd_config \
 		build/usermod.sh build/sample.hg repos/sample.auth
 	$(warning Runs '$@'...)
 	'sudo' '$(SHELL)' build/usermod.sh
-	'sudo' -u hg $(CP) -R -t '$(HG_HOME)/' hooks permq repos ucsh
-	'sudo' [ ! -f '$(HG_HOME)/.ssh/authorized_keys' ] || { \
-		'sudo' 'head' -n1 '$(HG_HOME)/.ssh/authorized_keys' | 'grep' -q '^### Generated $(SIGNATURE) ' \
-			|| 'sudo' -u hg $(CP) '$(HG_HOME)/.ssh/authorized_keys' '$(HG_HOME)/.ssh/authorized_keys$(BACKUP_SUFFIX)'; \
-	}
+	$(if $(shell 'sudo' [ -f '$(HG_HOME)/.ssh/authorized_keys' ] && echo 1), \
+		$(if $(shell 'sudo' 'head' -n1 '$(HG_HOME)/.ssh/authorized_keys' 2> /dev/null \
+				| 'grep' '^### Generated $(SIGNATURE) '), , \
+			'sudo' -u hg 'mv' -f '$(HG_HOME)/.ssh/authorized_keys' '$(HG_HOME)/.ssh/authorized_keys$(BACKUP_SUFFIX)' \
+		) \
+	)
+	$(if $(shell 'tail' -n5 /etc/ssh/sshd_config | 'grep' '^### Added $(SIGNATURE) '), , \
+		'sudo' 'mv' -f /etc/ssh/sshd_config '/etc/ssh/sshd_config$(BACKUP_SUFFIX)' \
+	)
+	'sudo' -u hg $(CP) -R -t '$(HG_HOME)/' hooks permq ucsh
 	'sudo' -u hg $(CP) build/authorized_keys '$(HG_HOME)/.ssh/'
 	'sudo' -u hg $(CP) build/hgrc '$(HG_HOME)/.hgrc'
-	[ -d '$(HG_HOME)/repos/sample.hg' ] \
-		|| 'sudo' -u hg $(CP) -R build/sample.hg '$(HG_HOME)/repos/'
-	'sudo' 'tail' -n5 /etc/ssh/sshd_config \
-		| 'grep' -q '^### Added $(SIGNATURE) ' \
-			|| 'sudo' $(CP) /etc/ssh/sshd_config '/etc/ssh/sshd_config$(BACKUP_SUFFIX)'
+	$(foreach file, $(wildcard $(HG_HOME)/repos/*), \
+		$(if $(and $(wildcard $(file)/.hg/store), \
+				$(shell [ '$(notdir $(file))' = `'basename' '$(file)' .hg` ] && echo 1) \
+			), \
+			'sudo' 'mv' -f '$(file)' '$(file).hg'; \
+		) \
+	)
+	$(if $(wildcard $(HG_HOME)/repos/sample.hg), , \
+		'sudo' -u hg $(CP) -R build/sample.hg '$(HG_HOME)/repos/' \
+	)
+	$(if $(wildcard $(HG_HOME)/repos/sample.auth), , \
+		'sudo' -u hg $(CP) repos/sample.auth '$(HG_HOME)/repos/' \
+	)
 	'sudo' $(CP) build/sshd_config /etc/ssh/sshd_config
 	'sudo' 'chown' root:root /etc/ssh/sshd_config
 	'sudo' /etc/init.d/ssh restart > /dev/null
@@ -95,18 +108,19 @@ ifeq "$(strip $(wildcard $(HG_HOME)/ucsh))" "$(HG_HOME)/ucsh"
 
 uninstall:
 	$(warning Runs '$@'...)
-	[ ! -f '/etc/ssh/sshd_config$(BACKUP_SUFFIX)' ] || { \
+	$(if $(wildcard /etc/ssh/sshd_config$(BACKUP_SUFFIX)), \
 		'sudo' 'mv' -f '/etc/ssh/sshd_config$(BACKUP_SUFFIX)' /etc/ssh/sshd_config; \
 		'sudo' /etc/init.d/ssh restart > /dev/null; \
-	}
-	[ -d '$(HG_HOME)' ] || exit 0
-	cd '$(HG_HOME)' && 'sudo' $(RM) -R .hgrc hooks permq repos/sample.auth .ssh/authorized_keys ucsh
-	'sudo' [ ! -f '$(HG_HOME)/.ssh/authorized_keys$(BACKUP_SUFFIX)' ] \
-		|| 'sudo' 'mv' -f '$(HG_HOME)/.ssh/authorized_keys$(BACKUP_SUFFIX)' '$(HG_HOME)/.ssh/authorized_keys'
-	read -p'Also destroy the `sample'"'"' repository? Type `yes'"'"' to do it: ' c \
-		&& [ 'xyes' = 'x'`echo -n "$${c}"` ] \
-		&& 'sudo' $(RM) -R '$(HG_HOME)/repos/sample.hg' \
-		|| exit 0
+	)
+	$(if $(shell 'sudo' [ -f '$(HG_HOME)/.ssh/authorized_keys$(BACKUP_SUFFIX)' ] && echo 1), \
+		'sudo' -u hg 'mv' -f '$(HG_HOME)/.ssh/authorized_keys$(BACKUP_SUFFIX)' '$(HG_HOME)/.ssh/authorized_keys' \
+	)
+	$(if $(shell read -p'> Also destroy the `sample'"'"' repository? Type `yes'"'"' to do it: ' c \
+			&& [ 'xyes' = 'x'`echo -n "$${c}"` ] && echo 1 \
+		), \
+		cd '$(HG_HOME)/repos' && 'sudo' $(RM) -R sample.hg sample.auth \
+	)
+	cd '$(HG_HOME)' && 'sudo' $(RM) -R .hgrc hooks permq .ssh/authorized_keys ucsh
 
 endif
 
