@@ -1,0 +1,112 @@
+#!/bin/sh
+#
+# create: 创建指定名称的生产版本库。
+#
+# AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
+# COPYRIGHT © 2011 uc.cn.
+
+export PATH="/usr/local/bin:/usr/bin:/bin"
+
+# {{{ 基础定义
+
+CREATE=`'basename' "$0"`
+
+CREATOR_REGEX='^[^[:space:]]\+ <[[:alnum:]_\-\.]\+@'
+CREATOR_REGEX="${CREATOR_REGEX}\([[:alnum:]_\-\.]\+\.\)\+"
+CREATOR_REGEX="${CREATOR_REGEX}[[:alnum:]_\-\.]\+>$"
+
+# }}}
+
+# {{{ 规约错误描述
+
+# 1
+readonly E_FOR_HG_ONLY='请切换为 hg 帐号再运行本程序。'
+# 2
+readonly E_USAGE="请遵循格式：${CREATE} <版本库名称> by <创建者身份>"
+# 3
+readonly E_REPO_NAME_REQUIRED='『版本库名称』不能为空。'
+# 4
+readonly E_REPO_NAME_USED='『版本库名称』"%s"已被使用过。'
+# 5
+readonly E_CREATOR_REQUIRED='『创建者身份』请遵循“全名 <邮件地址>”的写法规范。'
+# 6
+readonly E_FOR_UCHGD_ONLY='请先行安装 UCHGd 后再运行本程序。'
+# 7
+readonly E_FOR_MERCURIAL_ONLY='请先行安装 Mercurial 后再运行本程序。'
+# 8
+readonly E_CREATION_FAILED='创建版本库失败…'
+
+# }}}
+
+# {{{ 基础函数定义 - _halt()
+
+_halt() {
+  [ 0 -eq $# ] && exit 0
+
+  local code=$1
+  shift
+
+  [ 0 -lt $# ] && {
+    local mesg="UCHGd: $1"
+    shift
+
+    'printf' "${mesg}" "$@"
+    echo ''
+  }
+
+  exit $code
+}
+
+# }}}
+
+# {{{ 环境检查
+
+[ 'hg' = `'id' -un` ] || _halt 1 "${E_FOR_HG_ONLY}"
+
+'which' 'hg' > /dev/null 2>&1 || _halt 7 "${E_FOR_MERCURIAL_ONLY}"
+
+[ -x "${HOME}/ucsh" -a -x "${HOME}/permq" ] || _halt 6 "${E_FOR_UCHGD_ONLY}"
+
+[ 3 -eq $# -a 'xby' = "x$2" ] || _halt 2 "${E_USAGE}"
+
+# }}}
+
+# {{{ 参数处理
+
+[ -n "$1" ] || _halt 3 "${E_REPO_NAME_REQUIRED}"
+
+REPO_NAME=`'basename' "$1" .hg`
+
+[ -d "${HOME}/repos/${REPO_NAME}.hg/.hg/store" ] \
+  && _halt 4 "${E_REPO_NAME_USED}" "${REPO_NAME}"
+
+echo "$3" | 'grep' -q "${CREATOR_REGEX}" || _halt 5 "${E_CREATOR_REQUIRED}"
+
+CREATOR="$3"
+
+# }}}
+
+# {{{ 创建版本库
+
+DUMMY_HG="/tmp/dummy~$$.hg"
+
+'hg' init "${HOME}/repos/${REPO_NAME}.hg" 2> /dev/null \
+  || _halt 8 "${E_CREATOR_REQUIRED}"
+
+'mv' -f "${HOME}/.hgrc" "${HOME}/.hgrc~skipped"
+
+'hg' init "${DUMMY_HG}"
+echo 'syntax: glob' > "${DUMMY_HG}/.hgignore"
+echo '.*' >> "${DUMMY_HG}/.hgignore"
+cd "${DUMMY_HG}"
+'hg' add .hgignore
+'hg' commit -m'PROJECT INITIALIZED' -u"${CREATOR}"
+'hg' push "${HOME}/repos/${REPO_NAME}.hg" > /dev/null
+'rm' -fR "${DUMMY_HG}"
+
+'mv' -f "${HOME}/.hgrc~skipped" "${HOME}/.hgrc"
+
+# }}}
+
+# vim:ft=sh:fenc=utf-8:ff=unix:tw=75:ts=2:sts=2:et:ai:si
+# vim:nowrap:sw=2:nu:nuw=4:so=5:fen:fdm=marker
