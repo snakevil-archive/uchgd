@@ -11,7 +11,7 @@ export PATH="/usr/local/bin:/usr/bin:/bin"
 
 CREATE=`'basename' "$0"`
 
-CREATOR_REGEX='^[^[:space:]]\+ <[[:alnum:]_\-\.]\+@'
+CREATOR_REGEX='^\([^[:space:]]\+ \)\+<[[:alnum:]_\-\.]\+@'
 CREATOR_REGEX="${CREATOR_REGEX}\([[:alnum:]_\-\.]\+\.\)\+"
 CREATOR_REGEX="${CREATOR_REGEX}[[:alnum:]_\-\.]\+>$"
 
