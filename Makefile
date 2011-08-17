@@ -24,6 +24,14 @@ USED_CMDS = awk basename expr hg id sudo useradd usermod wc stat mv grep \
 
 # {{{ 基础计算
 
+AUTHOR = $(strip $(if $(wildcard $(HOME)/.ssh/id_rsa.pub), \
+		$(shell 'awk' '{for(i=3;i<=NF;i++)j=j" "$$i;print substr(j, 2)}' '$(HOME)/.ssh/id_rsa.pub'), \
+		$(shell 'awk' -F':' -v'host='`'hostname'` \
+			'"$(USER)"==$$1{gsub(/,*$$/, "", $$5);print $$5" <"$$1"@"host">"}' /etc/passwd \
+		) \
+	) \
+)
+
 HOOK_FILES = $(foreach hook, $(wildcard hooks/*), \
 	$(shell [ -x $(hook) ] && echo '$(hook)') \
 )
@@ -41,7 +49,7 @@ DEPARTS = $(notdir $(foreach depart, $(wildcard pubkeys/*), \
 # {{{ 终极目标：all
 
 all: build/cmds-chk.log $(addprefix build/authorized_keys.dept-, $(DEPARTS)) \
-		build/hgrc build/sshd_config build/usermod.sh build/sample.hg
+		build/hgrc build/sshd_config build/usermod.sh
 	$(warning Runs '$@'...)
 	'cat' build/authorized_keys.dept-* > build/authorized_keys
 
@@ -67,7 +75,7 @@ endif
 ifeq "$(strip $(wildcard build/authorized_keys))" "build/authorized_keys"
 
 install: build/authorized_keys build/cmds-chk.log build/hgrc build/sshd_config \
-		build/usermod.sh build/sample.hg repos/sample.auth
+		build/usermod.sh repos/sample.auth
 	$(warning Runs '$@'...)
 	'sudo' '$(SHELL)' build/usermod.sh
 	$(if $(shell 'sudo' [ -f '$(HG_HOME)/.ssh/authorized_keys' ] && echo 1), \
@@ -87,7 +95,7 @@ install: build/authorized_keys build/cmds-chk.log build/hgrc build/sshd_config \
 		) \
 	)
 	$(if $(wildcard $(HG_HOME)/repos/sample.hg), , \
-		'sudo' -u hg $(CP) -R build/sample.hg '$(HG_HOME)/repos/' \
+		cd '$(HG_HOME)' && 'sudo' -u hg -H ./create sample by '$(AUTHOR)' \
 	)
 	$(if $(wildcard $(HG_HOME)/repos/sample.auth), , \
 		'sudo' -u hg $(CP) repos/sample.auth '$(HG_HOME)/repos/' \
@@ -130,7 +138,7 @@ endif
 
 define DEPT_MAKE_template
 dept.$(strip $(1)): build/cmds-chk.log build/authorized_keys.dept-$(strip $(1)) \
-		build/hgrc build/sshd_config build/usermod.sh build/sample
+		build/hgrc build/sshd_config build/usermod.sh
 	$$(warning Runs '$$@'...)
 	$$(CP) build/authorized_keys.dept-$(strip $(1)) build/authorized_keys
 
@@ -168,26 +176,6 @@ build/cmds-chk.log:
 
 # }}}
 
-# {{{ 自定义目标：build/dummy.hg
-
-build/dummy.hg:
-	$(warning Generates '$@'...)
-	'mkdir' -p $(@D)
-	$(RM) -R $@
-	'hg' init $@
-	cd $@ && 'hg' branch stable > /dev/null
-	echo 'syntax: glob' > $@/.hgignore
-	echo '.*' >> $@/.hgignore
-	cd $@ && 'hg' add .hgignore
-	cd $@ && 'hg' ci -m'PROJECT INITIALIZED' -u'$(strip $(if $(wildcard $(HOME)/.ssh/id_rsa.pub), \
-		$(shell 'awk' '{for(i=3;i<=NF;i++)j=j" "$$i;print substr(j, 2)}' '$(HOME)/.ssh/id_rsa.pub'), \
-		$(shell 'awk' -F':' -v'host='`'hostname'` \
-			'"$(USER)"==$$1{gsub(/,*$$/, "", $$5);print $$5" <"$$1"@"host">"}' /etc/passwd \
-		) \
-	))'
-
-# }}}
-
 # {{{ 自定义目标：build/hgrc
 
 build/hgrc: $(HOOK_FILES)
@@ -200,17 +188,6 @@ build/hgrc: $(HOOK_FILES)
 	$(foreach hook, $(sort $(notdir $^)), \
 		echo '$(strip $(hook)) = $(HG_HOME)/hooks/$(strip $(hook))' >> $@; \
 	)
-
-# }}}
-
-# {{{ 自定义目标：build/sample.hg
-
-build/sample.hg: build/dummy.hg
-	$(warning Generates '$@'...)
-	'mkdir' -p $(@D)
-	$(RM) -R $@
-	'hg' init $@
-	cd $< && 'hg' push $(abspath $@) > /dev/null
 
 # }}}
 
