@@ -80,7 +80,7 @@ unset syntax
 
 # {{{ 检查版本库
 
-readonly REPO_NAME=`echo "$1" | 'awk' '{print $3}'`
+readonly REPO_NAME=`echo "$1" | 'awk' '{gsub(/\.hg$/,"",$3);print $3".hg"}'`
 readonly REPO_SRC="${HOME}/repos/${REPO_NAME}"
 readonly REPO_HG="${REPO_SRC}/.hg"
 readonly REPO_AUTH="${REPO_SRC}.auth"
