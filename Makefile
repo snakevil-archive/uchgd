@@ -76,10 +76,7 @@ install: build/authorized_keys build/cmds-chk.log build/hgrc build/sshd_config \
 			'sudo' -u hg 'mv' -f '$(HG_HOME)/.ssh/authorized_keys' '$(HG_HOME)/.ssh/authorized_keys$(BACKUP_SUFFIX)' \
 		) \
 	)
-	$(if $(shell 'tail' -n5 /etc/ssh/sshd_config | 'grep' '^### Added $(SIGNATURE) '), , \
-		'sudo' 'mv' -f /etc/ssh/sshd_config '/etc/ssh/sshd_config$(BACKUP_SUFFIX)' \
-	)
-	'sudo' -u hg $(CP) -R -t '$(HG_HOME)/' hooks permq ucsh
+	'sudo' -u hg $(CP) -R -t '$(HG_HOME)/' create hooks permq ucsh
 	'sudo' -u hg $(CP) build/authorized_keys '$(HG_HOME)/.ssh/'
 	'sudo' -u hg $(CP) build/hgrc '$(HG_HOME)/.hgrc'
 	$(foreach file, $(wildcard $(HG_HOME)/repos/*), \
@@ -94,6 +91,9 @@ install: build/authorized_keys build/cmds-chk.log build/hgrc build/sshd_config \
 	)
 	$(if $(wildcard $(HG_HOME)/repos/sample.auth), , \
 		'sudo' -u hg $(CP) repos/sample.auth '$(HG_HOME)/repos/' \
+	)
+	$(if $(shell 'tail' -n5 /etc/ssh/sshd_config | 'grep' '^### Added $(SIGNATURE) '), , \
+		'sudo' 'mv' -f /etc/ssh/sshd_config '/etc/ssh/sshd_config$(BACKUP_SUFFIX)' \
 	)
 	'sudo' $(CP) build/sshd_config /etc/ssh/sshd_config
 	'sudo' 'chown' root:root /etc/ssh/sshd_config
@@ -120,7 +120,7 @@ uninstall:
 		), \
 		cd '$(HG_HOME)/repos' && 'sudo' $(RM) -R sample.hg sample.auth \
 	)
-	cd '$(HG_HOME)' && 'sudo' $(RM) -R .hgrc hooks permq .ssh/authorized_keys ucsh
+	cd '$(HG_HOME)' && 'sudo' $(RM) -R create .hgrc hooks permq .ssh/authorized_keys ucsh
 
 endif
 
