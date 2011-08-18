@@ -95,7 +95,9 @@ install: build/authorized_keys build/cmds-chk.log build/hgrc build/sshd_config \
 		) \
 	)
 	$(if $(wildcard $(HG_HOME)/repos/sample.hg), , \
-		cd '$(HG_HOME)' && 'sudo' -u hg -H ./create sample by '$(AUTHOR)' \
+		$(if $(wildcard $(HG_HOME)/repos/sample), , \
+			cd '$(HG_HOME)' && 'sudo' -u hg -H ./create sample by '$(AUTHOR)' \
+		) \
 	)
 	$(if $(wildcard $(HG_HOME)/repos/sample.auth), , \
 		'sudo' -u hg $(CP) repos/sample.auth '$(HG_HOME)/repos/' \
