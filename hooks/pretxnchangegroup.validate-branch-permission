@@ -15,8 +15,9 @@ readonly HG_SOURCE
 readonly HG_URL
 
 readonly HG_SRC="${HG_PENDING}"
-readonly HG_NAME=`'basename' "${HG_PENDING}"`
-readonly HG_AUTH="${HG_SRC}.auth"
+readonly HG_ROOT=`'dirname' "${HG_PENDING}"`
+readonly HG_NAME=`'basename' "${HG_PENDING}" .hg`
+readonly HG_AUTH="${HG_ROOT}/${HG_NAME}.auth"
 
 # {{{ 规约错误描述
 
