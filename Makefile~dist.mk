@@ -5,7 +5,8 @@
 
 ifeq "$(wildcard .hg/store)" ".hg/store"
 
-DIST_FILE = dist./uchgd-$(strip $(if $(shell [ 'tip' = `'hg' parents --template '{tags}'` ] || echo 1), \
+DIST_FILE = dist./uchgd-$(strip $(if $(shell TAGS=`'hg' parents --template '{tags}'` \
+		&& [ -n "$${TAGS}" ] && [ 'tip' = `'hg' parents --template '{tags}'` ] || echo 1), \
 	$(shell 'hg' parents --template 'v{tags}'), \
 	$(shell 'hg' parents --template 'nr{rev}') \
 )).tar.gz
