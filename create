@@ -99,6 +99,7 @@ DUMMY_HG="/tmp/dummy~$$.hg"
 echo 'syntax: glob' > "${DUMMY_HG}/.hgignore"
 echo '.*' >> "${DUMMY_HG}/.hgignore"
 cd "${DUMMY_HG}"
+'hg' branch stable > /dev/null
 'hg' add .hgignore
 'hg' commit -m'PROJECT INITIALIZED' -u"${CREATOR}"
 'hg' push "${HOME}/repos/${REPO_NAME}.hg" > /dev/null
