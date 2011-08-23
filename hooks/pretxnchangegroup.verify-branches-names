@@ -1,0 +1,81 @@
+#!/bin/sh
+#
+# hooks/pretxnchangegroup.verify-branches-names: 在 push 时检查对分支的命名是否符合规范。
+#
+# AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
+# COPYRIGHT © 2011 uc.cn.
+
+export PATH="${HOME}:/usr/local/bin:/usr/bin:/bin"
+
+readonly HG
+
+readonly HG_NODE
+readonly HG_PENDING
+readonly HG_SOURCE
+readonly HG_URL
+
+readonly HG_SRC="${HG_PENDING}"
+readonly HG_ROOT=`'dirname' "${HG_PENDING}"`
+readonly HG_NAME=`'basename' "${HG_PENDING}" .hg`
+readonly HG_AUTH="${HG_ROOT}/${HG_NAME}.auth"
+
+# {{{ 规约错误描述
+
+# 1
+readonly E_ILLEGAL_BRANCH_NAME='错误！非法的分支名称"%s"。'
+
+# }}}
+
+# {{{ 基础函数定义 - _halt()
+
+_halt() {
+  [ 0 -eq $# ] && exit 0
+
+  local code=$1
+  shift
+
+  [ 0 -lt $# ] && {
+    local mesg="UCHGd: $1"
+    shift
+
+    'printf' "${mesg}" "$@"
+    echo ''
+  }
+
+  exit $code
+}
+
+# }}}
+
+# {{{ 鉴别操作类型
+
+case "${HG_SOURCE}" in
+  'serve' | 'push' )
+    ;;
+  * )
+    exit 0
+    ;;
+esac
+
+# }}}
+
+# {{{ 验证分支名称是否符合要求
+
+branch=`"${HG}" log -r "${HG_NODE}:tip" \
+    --template '{branches}\n' 2> /dev/null \
+  | 'sort' -u \
+  | 'awk' ' \
+    "stable" != $0 && "rc" != $0 && $0 !~ /^(rc|dev)-/ { \
+      if (!first) { \
+        print; \
+        first="done"; \
+      } \
+    } \
+  '`
+
+[ -z "${branch}" ] || _halt 1 "${E_ILLEGAL_BRANCH_NAME}" "${branch}"
+
+# }}}
+
+# vim:ft=sh:fenc=utf-8:ff=unix:tw=75:ts=2:sts=2:et:ai:si
+# vim:nowrap:sw=2:nu:nuw=4:so=5:fen:fdm=marker
