@@ -1,0 +1,118 @@
+#!/bin/sh
+#
+# hooks/pretxnchangegroup.verify-commits-logs: push 时验证提交日志是否符合规范。
+#
+# AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
+# COPYRIGHT © 2011 uc.cn.
+
+export PATH="${HOME}:/usr/local/bin:/usr/bin:/bin"
+
+readonly HG
+
+readonly HG_NODE
+readonly HG_PENDING
+readonly HG_SOURCE
+readonly HG_URL
+
+readonly HG_SRC="${HG_PENDING}"
+readonly HG_ROOT=`'dirname' "${HG_PENDING}"`
+readonly HG_NAME=`'basename' "${HG_PENDING}" .hg`
+readonly HG_AUTH="${HG_ROOT}/${HG_NAME}.auth"
+
+# {{{ 规约错误描述
+
+# 1
+readonly E_MULTI_LINES='错误！变更集"%s"的提交日志行数过多。'
+# 2
+readonly E_BUG_ONLY='错误！变更集"%s"的提交日志使用了"BUG修复"的专用标记。'
+# 3
+readonly E_TAG_ONLY='错误！变更集"%s"的提交日志使用了"TAG版本"的专用标记。'
+# 4
+readonly E_DISMATCHED_FILES='错误！变更集"%s"的提交日志与实际操作文件不符。'
+# 5
+readonly E_DISMATCHED_BRANCH='错误！变更集"%s"的合并分支"%s"与实际不符。'
+
+# }}}
+
+# {{{ 基础函数定义 - _halt()
+
+_halt() {
+  [ 0 -eq $# ] && exit 0
+
+  local code=$1
+  shift
+
+  [ 0 -lt $# ] && {
+    local mesg="UCHGd: $1"
+    shift
+
+    'printf' "${mesg}" "$@"
+    echo ''
+  }
+
+  exit $code
+}
+
+# }}}
+
+# {{{ 鉴别操作类型
+
+case "${HG_SOURCE}" in
+  'serve' | 'push' )
+    ;;
+  * )
+    exit 0
+    ;;
+esac
+
+# }}}
+
+chgsets=`"${HG}" log -r "${HG_NODE}:tip" \
+    --template '{node|short} ' 2> /dev/null`
+
+for chgset in $chgsets; do
+  desc=`"${HG}" log -r"${chgset}" --template '{desc}' 2> /dev/null`
+  lines=`echo "${desc}" | 'wc' -l`
+  [ 1 -eq "${lines}" ] || _halt 1 "${E_MULTI_LINES}" "${chgset}"
+  desc=`echo "${desc}" \
+    | 'awk' ' \
+      "+" == $1 || "-" == $1 || "*" == $1 || "!" == $1 || "<" == $1 \
+          || ">" == $1 || "M" == $1 || "v" == $1 || "x" == $1 { \
+        len = length($2); \
+        if (":" == substr($2, len)) \
+          print $1, substr($2, 1, len - 1); \
+      } \
+    '`
+  act=`echo "${desc}" | 'awk' '{print $1}'`
+  desc=`echo "${desc}" | 'awk' '{print $2}'`
+  case "${act}" in
+    'x' )
+      [ '#' = `echo "${desc}" | 'cut' -b'-1'` ] \
+        || _halt 2 "${E_BUG_ONLY}" "${chgset}"
+      ;;
+    'v' )
+      files=`"${HG}" log -r"${chgset}" --template '{files}' 2> /dev/null`
+      [ 's.hgtags' = "s${files}" ] || _halt 3 "${E_TAG_ONLY}" "${chgset}"
+      ;;
+    'M' )
+      branch=`"${HG}" log -r"${chgset}" --template '{branches}' 2> /dev/null`
+      branch=`"${HG}" parents -r"${chgset}" \
+          --template '{branches}\n' 2> /dev/null \
+        | 'grep' -v "${branch}"`
+      branch=`echo -n "${branch}"`
+      [ "s${desc}" = "s${branch}" ] \
+        || _halt 5 "${E_DISMATCHED_BRANCH}" "${chgset}" "${desc}"
+      ;;
+    '+'|'-'|'!'|'*' )
+      files=`"${HG}" log -r"${chgset}" --template '{files}' 2> /dev/null`
+      [ "s${desc}" = "s${files}" ] \
+        || _halt 4 "${E_DISMATCHED_FILES}" "${chgset}"
+      ;;
+    * )
+      _halt 5 'To be continued...'
+      ;;
+  esac
+done
+
+# vim:ft=sh:fenc=utf-8:ff=unix:tw=75:ts=2:sts=2:et:ai:si
+# vim:nowrap:sw=2:nu:nuw=4:so=5:fen:fdm=marker
