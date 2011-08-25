@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# hooks/pretxnchangegroup.validate-branch-permission: 在 push 时检查对分支的写入权限。
+# hooks/pretxnchangegroup.authenticate-writing-on-branches: 在 push 时检查对分支的写入权限。
 #
 # AUTHOR    Snakevil Zen <zhengyy@ucweb.com>
 # COPYRIGHT © 2011 uc.cn.
