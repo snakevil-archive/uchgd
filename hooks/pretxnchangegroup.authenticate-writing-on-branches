@@ -91,9 +91,12 @@ case "${perm}" in
     ;;
 esac
 
-branch=`echo "${branches}" \
-  | 'grep' -v -F "${perm}" \
-  | 'head' -n1`
+echo "${perm}" | 'grep' -qF '*' && {
+  perm=`echo "${perm}" | 'sed' -e 's/*/.*/'`
+  branch=`echo "${branches}" | 'grep' -v "^${perm}\$" | 'head' -n1`
+} || {
+  branch=`echo "${branches}" | 'grep' -v -F "${perm}" | 'head' -n1`
+}
 
 [ -z "${branch}" ] && exit 0 \
   || _halt 2 "${E_ACCESS_DENIED}" "${USER}" "${branch}"
